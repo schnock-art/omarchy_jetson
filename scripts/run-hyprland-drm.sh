@@ -158,6 +158,8 @@ if [ "$PANEL" -eq 1 ]; then
     --mount "type=volume,src=$RUNTIME_VOLUME,dst=/tmp/hypr-runtime" \
     --mount "type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly" \
     -e HOME=/tmp -e XDG_RUNTIME_DIR=/tmp/hypr-runtime \
+    --mount type=bind,src=/etc/localtime,dst=/etc/localtime,readonly \
+    -e LANG=C.UTF-8 \
     -e QT_QPA_PLATFORM=wayland \
     --entrypoint sh quickshell:phase1 /test/run-layer-panel.sh
   set -- --mount "type=volume,src=$RUNTIME_VOLUME,dst=/tmp/hypr-runtime"

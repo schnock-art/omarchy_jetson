@@ -187,3 +187,27 @@ counter/log messages are the acceptance checks. A QML loaded message alone does
 not establish that the layer surface is mapped. Shell checks pass; an offscreen
 QML attempt correctly lacks a PanelWindow backend, so full panel validation is
 pending the physical run. This is a protocol/input smoke test, not Quattro yet.
+
+## Layer panel success and first Quattro-derived component
+
+The user confirmed the top bar was visible and clicks incremented its counter.
+Quickshell logs record `JETSON_LAYER_PANEL_LOADED` followed by click counts 1
+through 8. Hyprland exited with status 0. EGL probing warnings remain in the
+client log despite successful visible rendering; a Wayland-disconnected warning
+at compositor exit is expected. The successful containers are preserved as
+`hyprland-layer-success-20260917` and `quickshell-layer-success-20260917`.
+
+The next panel revision adds an adapted clock on the right using upstream
+Quattro's unmodified `Model.js` at Omarchy commit
+`2fbac0c8e88eca704af1650ce721a494bd11a3d0`. Source provenance and license live in
+`tests/runtime-smoke/quattro-clock/`. This isolates upstream date/format logic
+without loading its full theme, calendar, settings, and command dependencies.
+Right-click cycles formats in memory; the initial format includes seconds.
+The client uses the host timezone via a read-only `/etc/localtime` mount.
+
+The actual ClockFace QML loaded successfully under Qt's offscreen backend,
+produced a nonempty label, cycled formats, and passed an ISO week-year boundary
+check (`2021-01-01` is week 53). This checks the clock adapter, not layer-shell
+rendering. The upstream model copy was verified byte-for-byte. The next visual
+check uses the same `--stop-gdm --panel` command; verify seconds tick and
+right-click changes the clock format before exiting with Super+Shift+E.
