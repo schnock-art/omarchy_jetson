@@ -118,3 +118,27 @@ the input cgroup wildcard alone does not prove hot-plug support: newly created
 device nodes and udev notifications must also reach the container. The current
 `--device=/dev/input` mapping should be tested with keyboard/mouse plugged in
 before launch; hot-plug remains unverified.
+
+## Splash followed by seat deactivation (17:09 local time)
+
+The revised launcher reached visible Hyprland output. The container log confirms
+seatd accepted UID/GID 2002, NVIDIA EGL/GLES initialized, and libinput enumerated
+the MOSART and Telink keyboards/mice. Thus initial input enumeration is fixed.
+At elapsed 6.196 seconds seatd began disabling the client, then input devices
+were removed. Host logs show the preceding GNOME/Xorg session was still exiting
+between 17:09:30 and 17:09:34, after Hyprland started at 17:09:27. A late VT
+switch during teardown is the leading hypothesis; the logs do not identify the
+initiator of that switch. Page-flip-pending errors also appeared during startup
+and may require investigation if the black screen persists with an active seat.
+
+The container ended with status 137, OOMKilled=false, following SSH recovery;
+this does not establish an earlier compositor crash. It is retained as
+`hyprland-phase2-drm-20260917-1709` for inspection.
+
+The launcher now snapshots live graphical session scopes on seat0 and waits up
+to 60 seconds for those scopes to finish after stopping GDM, before switching
+back to the selected VT and launching Hyprland. A timeout aborts and restores
+GDM. A minimal smoke configuration enables full logs and provides Super+Shift+E
+to exit; the preferred display mode is unchanged to isolate the handoff change.
+Shell syntax, host preflight, and Hyprland's own `--verify-config` check pass.
+The revised physical-session test remains pending.

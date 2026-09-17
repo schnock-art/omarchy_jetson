@@ -5,6 +5,8 @@ set -eu
 STOP_GDM=0
 CHECK_ONLY=0
 ACTIVE_TTY=
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+TEST_CONFIG="$SCRIPT_DIR/../tests/runtime-smoke/hyprland.conf"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --stop-gdm) STOP_GDM=1; shift ;;
@@ -47,6 +49,7 @@ RENDER_GID=$(getent group render | cut -d: -f3)
 [ -c /dev/tty0 ] && [ -c "$ACTIVE_TTY" ] && [ -d /dev/dri ] && [ -d /dev/input ]
 docker info >/dev/null
 docker image inspect hyprland:phase2-runtime >/dev/null
+[ -r "$TEST_CONFIG" ] || { echo "Missing test config: $TEST_CONFIG" >&2; exit 1; }
 command -v chvt >/dev/null
 command -v fgconsole >/dev/null
 if docker container inspect hyprland-phase2-drm >/dev/null 2>&1; then
@@ -83,8 +86,41 @@ trap 'exit 143' HUP TERM
 # Stopping GDM can blank the active screen or switch VTs. Doing it here means
 # this already-running process continues directly into the DRM compositor.
 if [ "$STOP_GDM" -eq 1 ]; then
+  # GDM's service can finish stopping while its separate logind session scope
+  # is still tearing down Xorg, which can subsequently switch away from our VT.
+  GRAPHICAL_SCOPES=
+  for session in $(loginctl list-sessions --no-legend | awk '{print $1}'); do
+    seat=$(loginctl show-session "$session" -p Seat --value 2>/dev/null || true)
+    type=$(loginctl show-session "$session" -p Type --value 2>/dev/null || true)
+    state=$(loginctl show-session "$session" -p State --value 2>/dev/null || true)
+    if [ "$seat" = seat0 ] && [ "$state" != closing ]; then
+      case "$type" in
+        x11|wayland)
+          scope=$(loginctl show-session "$session" -p Scope --value)
+          GRAPHICAL_SCOPES="$GRAPHICAL_SCOPES $scope" ;;
+      esac
+    fi
+  done
   if systemctl is-active --quiet gdm3; then RESTORE_GDM=1; fi
   systemctl stop gdm3
+  echo "Waiting for the previous graphical session to finish shutting down..."
+  remaining=60
+  while :; do
+    pending=
+    for scope in $GRAPHICAL_SCOPES; do
+      state=$(systemctl show "$scope" -p ActiveState --value)
+      case "$state" in
+        active|activating|deactivating) pending="$pending $scope" ;;
+      esac
+    done
+    [ -n "$pending" ] || break
+    if [ "$remaining" -eq 0 ]; then
+      echo "Graphical sessions still shutting down:$pending. Aborting and restoring GDM." >&2
+      exit 1
+    fi
+    sleep 1
+    remaining=$((remaining - 1))
+  done
 fi
 # GDM shutdown can change the foreground VT. seatd uses the active VT, so
 # explicitly reactivate the SAME console whose device is passed to Docker.
@@ -100,6 +136,7 @@ docker run -it \
   --device=/dev/input \
   --device-cgroup-rule='c 13:* rwm' \
   --mount type=bind,src=/run/udev,dst=/run/udev,readonly \
+  --mount "type=bind,src=$TEST_CONFIG,dst=/etc/hyprland-smoke.conf,readonly" \
   --device=/dev/tty0 \
   --device="$ACTIVE_TTY" \
   --cap-add=SYS_TTY_CONFIG \
@@ -109,4 +146,4 @@ docker run -it \
   -e HYPRLAND_VIDEO_GID="$VIDEO_GID" \
   -e HYPRLAND_RENDER_GID="$RENDER_GID" \
   -e XDG_RUNTIME_DIR=/tmp/hypr-runtime \
-  hyprland:phase2-runtime
+  hyprland:phase2-runtime --config /etc/hyprland-smoke.conf
