@@ -53,3 +53,13 @@ no xwayland
 ## Host finding
 
 Real DRM Weston already initializes NVIDIA EGL 1.5 and OpenGL ES 3.2 on the Orin. The next compositor test should therefore use a retained, fully built Hyprland image and run it only after the user stops the current Weston session. GNOME/GDM remains recoverable through SSH.
+
+## Controlled container runtime result
+
+A fresh, network-isolated runtime container was started from the retained image with the NVIDIA container runtime and `/dev/dri` exposed. Hyprland began normal initialization, enumerated the Jetson DRM cards, and then stopped while creating its Aquamarine backend.
+
+The retained log identifies the precise boundary: the container has no active physical seat or virtual terminal. Its embedded `seatd` cannot open `tty0`, and `libseat` reports that the client is not active when it tries to open `/dev/dri/card1` and `/dev/dri/card2`. Aquamarine consequently skips both cards as unavailable KMS devices and cannot create `CBackend`.
+
+This is not an NVIDIA EGL, GBM, or Hyprland build failure; graphics initialization has not yet been reached. No host display, Wayland socket, or desktop service was mounted into the test container, and the host session was not changed.
+
+The next meaningful runtime test must run on the Jetson's active local VT/seat, coordinated with stopping the currently active compositor or display manager. That step can affect the visible desktop and should be performed with SSH already connected as the recovery path.
