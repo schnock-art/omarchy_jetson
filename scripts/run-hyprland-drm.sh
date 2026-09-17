@@ -16,7 +16,12 @@ RENDER_GID=$(getent group render | cut -d: -f3)
 
 [ -n "$INPUT_GID" ] && [ -n "$VIDEO_GID" ] && [ -n "$RENDER_GID" ]
 [ -d /run/udev/data ] || { echo "/run/udev/data is unavailable; host udev is required." >&2; exit 1; }
-[ -c /dev/tty0 ] && [ -c /dev/tty1 ] && [ -d /dev/dri ] && [ -d /dev/input ]
+ACTIVE_TTY=$(tty)
+case "$ACTIVE_TTY" in
+  /dev/tty[0-9]*) ;;
+  *) echo "Run from a physical Ctrl+Alt+F<n> console, not SSH or a terminal emulator." >&2; exit 1 ;;
+esac
+[ -c /dev/tty0 ] && [ -c "$ACTIVE_TTY" ] && [ -d /dev/dri ] && [ -d /dev/input ]
 if docker container inspect hyprland-phase2-drm >/dev/null 2>&1; then
   echo "Container hyprland-phase2-drm already exists. Inspect its logs or remove that exact stopped container first." >&2
   exit 1
@@ -32,7 +37,7 @@ exec docker run -it \
   --device-cgroup-rule='c 13:* rwm' \
   --mount type=bind,src=/run/udev,dst=/run/udev,readonly \
   --device=/dev/tty0 \
-  --device=/dev/tty1 \
+  --device="$ACTIVE_TTY" \
   --cap-add=SYS_TTY_CONFIG \
   -e HYPRLAND_UID="$HOST_UID" \
   -e HYPRLAND_GID="$HOST_GID" \
