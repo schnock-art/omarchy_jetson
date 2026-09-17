@@ -63,9 +63,13 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   docker image inspect quickshell:phase1 >/dev/null
   QS_CONTAINER=quickshell-layer-smoke
   QS_RUNNER="$SCRIPT_DIR/../tests/runtime-smoke/run-layer-panel.sh"
+  QS_IMAGE=quickshell:phase1
+  QS_BIN=/tmp/quickshell-build/src/quickshell
   if [ "$QUATTRO" -eq 1 ]; then
     QS_CONTAINER=quickshell-quattro-smoke
     QS_RUNNER="$SCRIPT_DIR/../tests/runtime-smoke/run-quattro-shell.sh"
+    QS_IMAGE=quickshell:phase1-hypr
+    QS_BIN=/tmp/quickshell-hypr-build/src/quickshell
     [ -d /home/looco/omarchy/shell ]
   else
     [ -r "$SCRIPT_DIR/../tests/runtime-smoke/layer-panel.qml" ]
@@ -175,10 +179,11 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
     --mount "type=volume,src=$RUNTIME_VOLUME,dst=/tmp/hypr-runtime" \
     $QS_ARGS \
     -e HOME=/tmp -e XDG_RUNTIME_DIR=/tmp/hypr-runtime \
+    -e QS_BIN="$QS_BIN" \
     --mount type=bind,src=/etc/localtime,dst=/etc/localtime,readonly \
     -e LANG=C.UTF-8 \
     -e QT_QPA_PLATFORM=wayland \
-    --entrypoint sh quickshell:phase1 "$QS_RUNNER"
+    --entrypoint sh "$QS_IMAGE" "$QS_RUNNER"
   set -- --mount "type=volume,src=$RUNTIME_VOLUME,dst=/tmp/hypr-runtime"
 fi
 

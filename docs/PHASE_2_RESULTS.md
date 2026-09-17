@@ -236,3 +236,12 @@ next full-shell run replaces the component loop. The physical test remains one
 manual session because only the active local VT can validate DRM, input, and
 layer surfaces; failures and import/service discovery are automated in the
 container logs.
+
+The isolated rebuild completed successfully and was snapshot as
+`quickshell:phase1-hypr`. It preserves the original Quickshell feature profile
+but enables `HYPRLAND=ON`. The image contains `Quickshell.Hyprland`; the full
+shell's offscreen load now progresses through every QML import and stops only
+when Bar.qml attempts to create a PanelWindow, which is expected without a
+Wayland/layer-shell compositor. The `--quattro` launcher selects this image and
+discovers Hyprland's instance signature from the shared runtime volume before
+starting the full shell. The next physical test is therefore ready.
