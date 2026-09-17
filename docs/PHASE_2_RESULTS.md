@@ -245,3 +245,5 @@ when Bar.qml attempts to create a PanelWindow, which is expected without a
 Wayland/layer-shell compositor. The `--quattro` launcher selects this image and
 discovers Hyprland's instance signature from the shared runtime volume before
 starting the full shell. The next physical test is therefore ready.
+
+The first physical `--quattro` invocation started Hyprland successfully but did not launch the Quickshell sidecar: the launcher passed its host filesystem path to `sh` inside the container. The sidecar exited with status 2 and reported the missing host path. This was corrected to use the existing `/test/...` container mount path. No Quattro code ran in that attempt; the next invocation is the first full-shell runtime test.

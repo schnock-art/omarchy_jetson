@@ -62,19 +62,19 @@ command -v fgconsole >/dev/null
 if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   docker image inspect quickshell:phase1 >/dev/null
   QS_CONTAINER=quickshell-layer-smoke
-  QS_RUNNER="$SCRIPT_DIR/../tests/runtime-smoke/run-layer-panel.sh"
+  QS_RUNNER=/test/run-layer-panel.sh
   QS_IMAGE=quickshell:phase1
   QS_BIN=/tmp/quickshell-build/src/quickshell
   if [ "$QUATTRO" -eq 1 ]; then
     QS_CONTAINER=quickshell-quattro-smoke
-    QS_RUNNER="$SCRIPT_DIR/../tests/runtime-smoke/run-quattro-shell.sh"
+    QS_RUNNER=/test/run-quattro-shell.sh
     QS_IMAGE=quickshell:phase1-hypr
     QS_BIN=/tmp/quickshell-hypr-build/src/quickshell
     [ -d /home/looco/omarchy/shell ]
   else
     [ -r "$SCRIPT_DIR/../tests/runtime-smoke/layer-panel.qml" ]
   fi
-  [ -r "$QS_RUNNER" ]
+  [ -r "$SCRIPT_DIR/../tests/runtime-smoke/${QS_RUNNER##*/}" ]
   if docker container inspect "$QS_CONTAINER" >/dev/null 2>&1; then
     echo "Container $QS_CONTAINER already exists; preserve or remove it before another shell test." >&2
     exit 1
