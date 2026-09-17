@@ -3,6 +3,12 @@ set -eu
 
 : "${QS_BIN:=/tmp/quickshell-hypr-build/src/quickshell}"
 
+# The menu glyph is supplied by Omarchy's bundled font. Install it into this
+# disposable container before Qt constructs its font database.
+install -d -m 0755 /tmp/omarchy-fonts
+cp /omarchy/default/fonts/omarchy/omarchy.ttf /tmp/omarchy-fonts/omarchy.ttf
+fc-cache -f /tmp/omarchy-fonts >/dev/null
+
 remaining=60
 while [ "$remaining" -gt 0 ]; do
   for candidate in "$XDG_RUNTIME_DIR"/wayland-*; do

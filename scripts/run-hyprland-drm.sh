@@ -68,7 +68,7 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   if [ "$QUATTRO" -eq 1 ]; then
     QS_CONTAINER=quickshell-quattro-smoke
     QS_RUNNER=/test/run-quattro-shell.sh
-    QS_IMAGE=quickshell:phase1-hypr
+    QS_IMAGE=quickshell:phase1-hypr-tools
     QS_BIN=/tmp/quickshell-hypr-build/src/quickshell
     [ -d /home/looco/omarchy/shell ]
   else

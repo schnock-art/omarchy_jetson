@@ -263,3 +263,16 @@ The otherwise sparse bar is expected for the current deliberately lean image. Om
 | Workspace/style helpers | `hyprctl` is not present in the Quickshell image, though the native Quickshell Hyprland socket did connect. |
 
 The fallback bar's clock is independent and therefore appears. Bringing in the next group should be done by feature batches—first font plus Hyprland tooling/workspaces, then audio/tray and D-Bus integrations—rather than by individual widget. The completed containers are preserved as `hyprland-quattro-core-20260917` and `quickshell-quattro-core-20260917`.
+
+## Batch 2 preparation: icon font and Hyprland tooling
+
+`quickshell:phase1-hypr-tools` is a derived, isolated test image. It copies the
+Hyprland client prefix into the feature-enabled Quickshell image, including its
+matching libc++ and pixman runtime libraries. `hyprctl` now starts successfully
+and resolves all shared libraries. The full-shell runner copies Omarchy's bundled
+`omarchy.ttf` into its disposable filesystem and refreshes fontconfig before Qt
+starts; font metadata confirms the family name is `omarchy`.
+
+This batch has not yet had its physical visual test. It should restore the
+Omarchy menu mark and permit command-based workspace/style state. It deliberately
+does not expose host D-Bus, audio, tray, PAM, Polkit, or persistent user state.
