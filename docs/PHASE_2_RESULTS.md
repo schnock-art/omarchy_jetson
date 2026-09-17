@@ -142,3 +142,48 @@ GDM. A minimal smoke configuration enables full logs and provides Super+Shift+E
 to exit; the preferred display mode is unchanged to isolate the handoff change.
 Shell syntax, host preflight, and Hyprland's own `--verify-config` check pass.
 The revised physical-session test remains pending.
+
+## Confirmed interactive Hyprland session and next panel test
+
+The user subsequently confirmed that the mouse works and Super+Shift+E returns
+to the normal desktop. Docker records exit status 0 at 17:15:10 local time.
+The successful container is preserved as `hyprland-phase2-drm-working-20260917`.
+This establishes working physical input and a clean compositor exit after the
+graphical-session teardown fix.
+
+The launcher now accepts `--panel`. It starts the existing `quickshell:phase1`
+image as UID 2002 with NVIDIA rendering access, and shares a fresh Docker volume
+containing only this test's Wayland runtime directory with Hyprland. Quickshell
+waits up to 60 seconds for the compositor socket. The host's desktop runtime
+directory is not shared. Both containers are stopped on exit; their logs and
+the explicitly named runtime volume are retained for diagnostics.
+
+Run from the local text console:
+
+```sh
+cd /home/looco/repos/omarchy_jetson
+./scripts/run-hyprland-drm.sh --check --panel
+./scripts/run-hyprland-drm.sh --stop-gdm --panel
+```
+
+Expected result: a dark 56-pixel bar across the top, labelled
+`Jetson + Hyprland + Quickshell`, with a counter that increments when clicked.
+Super+Shift+E exits as before. The QML uses PanelWindow with a top exclusive zone
+and namespace `jetson-layer-smoke`, following the
+[Quickshell 0.3.1 PanelWindow API](https://quickshell.org/docs/v0.3.1/types/Quickshell/PanelWindow/).
+
+While running, inspection from SSH:
+
+```sh
+sudo docker logs quickshell-layer-smoke
+sudo docker exec --user 2002:2002 \
+  -e XDG_RUNTIME_DIR=/tmp/hypr-runtime \
+  -e LD_LIBRARY_PATH=/opt/hypr-clang/lib \
+  hyprland-phase2-drm /opt/hypr-clang/bin/hyprctl layers
+```
+
+The namespace appearing in `hyprctl layers`, visible anchored output, and click
+counter/log messages are the acceptance checks. A QML loaded message alone does
+not establish that the layer surface is mapped. Shell checks pass; an offscreen
+QML attempt correctly lacks a PanelWindow backend, so full panel validation is
+pending the physical run. This is a protocol/input smoke test, not Quattro yet.
