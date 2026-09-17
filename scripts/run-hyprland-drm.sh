@@ -3,15 +3,36 @@
 set -eu
 
 STOP_GDM=0
-if [ "${1:-}" = "--stop-gdm" ]; then
-  STOP_GDM=1
-  shift
-fi
-[ "$#" -eq 0 ] || { echo "Usage: $0 [--stop-gdm]" >&2; exit 2; }
+CHECK_ONLY=0
+ACTIVE_TTY=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --stop-gdm) STOP_GDM=1; shift ;;
+    --check) CHECK_ONLY=1; shift ;;
+    --tty) [ "$#" -ge 2 ] || exit 2; ACTIVE_TTY=$2; shift 2 ;;
+    *) echo "Usage: $0 [--stop-gdm] [--check] [--tty /dev/ttyN]" >&2; exit 2 ;;
+  esac
+done
+
+# Capture the original console BEFORE sudo creates its own pseudo-terminal.
+ACTIVE_TTY=${ACTIVE_TTY:-${SUDO_TTY:-$(tty 2>/dev/null || true)}}
+VT_NUMBER=${ACTIVE_TTY#/dev/tty}
+case "$VT_NUMBER" in
+  ''|0|*[!0-9]*)
+    echo "Cannot resolve a physical VT (detected: $ACTIVE_TTY)." >&2
+    echo "On the local text console run this script without sudo, or pass --tty /dev/tty3 if that is your console." >&2
+    exit 1 ;;
+esac
+[ "$ACTIVE_TTY" = "/dev/tty$VT_NUMBER" ] || exit 1
+[ "$VT_NUMBER" -le 63 ] || exit 1
 
 case "$(id -u)" in
   0) ;;
-  *) echo "Run with sudo from the active local VT." >&2; exit 1 ;;
+  *)
+    set -- --tty "$ACTIVE_TTY"
+    [ "$STOP_GDM" -eq 0 ] || set -- "$@" --stop-gdm
+    [ "$CHECK_ONLY" -eq 0 ] || set -- "$@" --check
+    exec sudo -- "$(readlink -f "$0")" "$@" ;;
 esac
 
 HOST_USER=looco
@@ -23,26 +44,54 @@ RENDER_GID=$(getent group render | cut -d: -f3)
 
 [ -n "$INPUT_GID" ] && [ -n "$VIDEO_GID" ] && [ -n "$RENDER_GID" ]
 [ -d /run/udev/data ] || { echo "/run/udev/data is unavailable; host udev is required." >&2; exit 1; }
-# Ubuntu's sudo may enable use_pty, which makes `tty` inside the root process
-# report /dev/pts/N. SUDO_TTY retains the caller's actual physical VT.
-ACTIVE_TTY=${SUDO_TTY:-$(tty)}
-case "$ACTIVE_TTY" in
-  /dev/tty[0-9]*) ;;
-  *) echo "Run from a physical Ctrl+Alt+F<n> console, not SSH or a terminal emulator." >&2; exit 1 ;;
-esac
 [ -c /dev/tty0 ] && [ -c "$ACTIVE_TTY" ] && [ -d /dev/dri ] && [ -d /dev/input ]
+docker info >/dev/null
+docker image inspect hyprland:phase2-runtime >/dev/null
+command -v chvt >/dev/null
+command -v fgconsole >/dev/null
 if docker container inspect hyprland-phase2-drm >/dev/null 2>&1; then
   echo "Container hyprland-phase2-drm already exists. Inspect its logs or remove that exact stopped container first." >&2
   exit 1
 fi
+echo "Preflight passed: console=$ACTIVE_TTY, image=hyprland:phase2-runtime, uid=$HOST_UID"
+[ "$CHECK_ONLY" -eq 0 ] || exit 0
+[ -t 0 ] || { echo "An interactive local console is required." >&2; exit 1; }
+if [ "$(fgconsole)" != "$VT_NUMBER" ]; then
+  echo "$ACTIVE_TTY is not the foreground console. Switch to it before starting." >&2
+  exit 1
+fi
+if [ "$STOP_GDM" -eq 0 ] && systemctl is-active --quiet gdm3; then
+  echo "GDM is active; use --stop-gdm for the coordinated handoff." >&2
+  exit 1
+fi
+
+RESTORE_GDM=0
+cleanup() {
+  result=$?
+  trap - EXIT HUP INT TERM
+  docker stop --time 5 hyprland-phase2-drm >/dev/null 2>&1 || true
+  if [ "$RESTORE_GDM" -eq 1 ]; then
+    systemctl start gdm3 || true
+  fi
+  echo "Test ended (status $result). Container logs retained: sudo docker logs hyprland-phase2-drm"
+  exit "$result"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' HUP TERM
 
 # Stopping GDM can blank the active screen or switch VTs. Doing it here means
 # this already-running process continues directly into the DRM compositor.
 if [ "$STOP_GDM" -eq 1 ]; then
+  if systemctl is-active --quiet gdm3; then RESTORE_GDM=1; fi
   systemctl stop gdm3
 fi
+# GDM shutdown can change the foreground VT. seatd uses the active VT, so
+# explicitly reactivate the SAME console whose device is passed to Docker.
+chvt "$VT_NUMBER"
+[ "$(fgconsole)" = "$VT_NUMBER" ] || { echo "Failed to activate $ACTIVE_TTY" >&2; exit 1; }
 
-exec docker run -it \
+docker run -it \
   --name hyprland-phase2-drm \
   --network none \
   --runtime=nvidia \

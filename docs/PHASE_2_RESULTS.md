@@ -79,3 +79,42 @@ The launcher determines the active text VT at runtime rather than assuming a fix
 To avoid an interactive gap on systems where stopping GDM blanks or changes the active VT, invoke the launcher with `--stop-gdm`. It stops GDM and immediately continues into the container from the already active text-console process.
 
 Ubuntu may configure `sudo` with `use_pty`, causing `tty` inside a sudo command to report `/dev/pts/N` even when the user invoked it from a real VT. The launcher uses `SUDO_TTY` when supplied, preserving the original `/dev/ttyN` for device passthrough.
+
+## Revised console handoff and verification
+
+The launcher now captures the console before invoking sudo itself, and accepts
+an explicit `--tty /dev/ttyN` override. `--check` validates the runtime image,
+Docker daemon, console device, and required device/database paths without
+stopping GDM or switching consoles. A real launch verifies the selected VT is
+foreground, stops GDM if requested, and explicitly switches back to the selected
+VT before starting seatd. It restores GDM on normal exit, failure, or handled
+termination signals when it stopped an active GDM service. SIGKILL, power loss,
+or a host hang cannot be recovered by a shell trap; retain SSH access.
+
+From the local text console, run without an outer sudo:
+
+```sh
+cd /home/looco/repos/omarchy_jetson
+./scripts/run-hyprland-drm.sh --check
+./scripts/run-hyprland-drm.sh --stop-gdm
+```
+
+If automatic console detection fails, check `tty` and supply that exact path:
+
+```sh
+sudo ./scripts/run-hyprland-drm.sh --check --tty /dev/tty3
+sudo ./scripts/run-hyprland-drm.sh --stop-gdm --tty /dev/tty3
+```
+
+Verification: shell syntax and diff checks pass; explicit tty3 preflight passes
+on the host. The full runtime entrypoint successfully runs `Hyprland --version`
+without the root-bypass flag. A physical display/input test of this revised
+handoff still requires the local console. No display service was stopped during
+these checks.
+
+Correction to earlier descriptions: seatd remains privileged throughout the
+session to broker device access; only the compositor drops privileges. Also,
+the input cgroup wildcard alone does not prove hot-plug support: newly created
+device nodes and udev notifications must also reach the container. The current
+`--device=/dev/input` mapping should be tested with keyboard/mouse plugged in
+before launch; hot-plug remains unverified.
