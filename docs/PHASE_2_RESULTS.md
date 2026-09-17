@@ -247,3 +247,19 @@ discovers Hyprland's instance signature from the shared runtime volume before
 starting the full shell. The next physical test is therefore ready.
 
 The first physical `--quattro` invocation started Hyprland successfully but did not launch the Quickshell sidecar: the launcher passed its host filesystem path to `sh` inside the container. The sidecar exited with status 2 and reported the missing host path. This was corrected to use the existing `/test/...` container mount path. No Quattro code ran in that attempt; the next invocation is the first full-shell runtime test.
+
+## Full Quattro core-shell result
+
+The corrected runtime test loaded Omarchy's actual `shell.qml`, displayed its top bar and clock, and connected Quickshell's Hyprland event socket. This establishes a real full-shell core on the Jetson. Its sibling process exits with code 255 only after Hyprland exits and breaks the Wayland connection; it is not an earlier shell-load failure.
+
+The otherwise sparse bar is expected for the current deliberately lean image. Omarchy's configured widgets require capabilities not yet included or exposed by the harness:
+
+| UI area | Missing requirement observed in logs |
+| --- | --- |
+| Menu mark | Omarchy's `omarchy.ttf` icon font is not installed in the container; it falls back to DejaVu Sans Mono. |
+| Tray, audio, microphone, Bluetooth/media | Quickshell PipeWire, MPRIS, and SystemTray modules were excluded from the initial build. |
+| Lock and polkit | Quickshell PAM and Polkit modules were excluded. |
+| Network, power, device-dependent widgets | No system D-Bus connection or host helper commands are provided to the isolated container. |
+| Workspace/style helpers | `hyprctl` is not present in the Quickshell image, though the native Quickshell Hyprland socket did connect. |
+
+The fallback bar's clock is independent and therefore appears. Bringing in the next group should be done by feature batches—first font plus Hyprland tooling/workspaces, then audio/tray and D-Bus integrations—rather than by individual widget. The completed containers are preserved as `hyprland-quattro-core-20260917` and `quickshell-quattro-core-20260917`.
