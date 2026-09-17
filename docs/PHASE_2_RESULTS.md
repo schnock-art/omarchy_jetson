@@ -276,3 +276,15 @@ starts; font metadata confirms the family name is `omarchy`.
 This batch has not yet had its physical visual test. It should restore the
 Omarchy menu mark and permit command-based workspace/style state. It deliberately
 does not expose host D-Bus, audio, tray, PAM, Polkit, or persistent user state.
+## Follow-up: visible icon and service batch
+
+The first icon/tooling attempt produced no visible change because the runner
+cached the Omarchy font in a temporary directory that fontconfig did not scan.
+The runner now supplies an explicit fontconfig file and verifies that the
+`omarchy` family resolves before starting Quickshell.
+
+The full Quattro image is now rebuilt as `quickshell:phase1-hypr-services` with
+`SERVICE_MPRIS`, `SERVICE_PAM`, `SERVICE_PIPEWIRE`, `SERVICE_POLKIT`, and
+`SERVICE_STATUS_NOTIFIER` enabled. CMake detected all five integrations and
+the ARM64 Quickshell 0.3.1 binary passed its version check. The launcher uses
+this image only for `--quattro`; the minimal layer-panel test is unchanged.

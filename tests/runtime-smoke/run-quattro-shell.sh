@@ -7,7 +7,18 @@ set -eu
 # disposable container before Qt constructs its font database.
 install -d -m 0755 /tmp/omarchy-fonts
 cp /omarchy/default/fonts/omarchy/omarchy.ttf /tmp/omarchy-fonts/omarchy.ttf
-fc-cache -f /tmp/omarchy-fonts >/dev/null
+install -d -m 0755 /tmp/omarchy-fontconfig
+cat > /tmp/omarchy-fontconfig/fonts.conf <<'EOF'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <dir>/tmp/omarchy-fonts</dir>
+  <include ignore_missing="yes">/etc/fonts/fonts.conf</include>
+</fontconfig>
+EOF
+export FONTCONFIG_FILE=/tmp/omarchy-fontconfig/fonts.conf
+fc-cache -f "$FONTCONFIG_FILE" >/dev/null
+echo "Omarchy icon font: $(fc-match -f '%{family}\n' omarchy)"
 
 remaining=60
 while [ "$remaining" -gt 0 ]; do
