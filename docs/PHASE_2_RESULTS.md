@@ -75,3 +75,5 @@ The initial container had no `/run/udev` and therefore no host udev database. Al
 `scripts/run-hyprland-drm.sh` is the corresponding host-side launcher. It intentionally uses only the required DRM, input, VT, NVIDIA, and read-only `/run/udev` bindings. It adds `c 13:* rwm` so USB input devices connected after container creation can be opened; the `/dev/input` mapping already covers event devices existing at start. The next run will validate enumeration and hot-plug with this image/launcher pair.
 
 The launcher determines the active text VT at runtime rather than assuming a fixed F-key mapping. On this host `Ctrl+Alt+F1` is GDM's graphical login; use a spare text console such as `Ctrl+Alt+F3`, log in there, stop GDM, and then run the launcher from that same console.
+
+To avoid an interactive gap on systems where stopping GDM blanks or changes the active VT, invoke the launcher with `--stop-gdm`. It stops GDM and immediately continues into the container from the already active text-console process.

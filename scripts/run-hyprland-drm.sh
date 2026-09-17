@@ -2,6 +2,13 @@
 # Run this from the Jetson's active physical VT, not over SSH.
 set -eu
 
+STOP_GDM=0
+if [ "${1:-}" = "--stop-gdm" ]; then
+  STOP_GDM=1
+  shift
+fi
+[ "$#" -eq 0 ] || { echo "Usage: $0 [--stop-gdm]" >&2; exit 2; }
+
 case "$(id -u)" in
   0) ;;
   *) echo "Run with sudo from the active local VT." >&2; exit 1 ;;
@@ -25,6 +32,12 @@ esac
 if docker container inspect hyprland-phase2-drm >/dev/null 2>&1; then
   echo "Container hyprland-phase2-drm already exists. Inspect its logs or remove that exact stopped container first." >&2
   exit 1
+fi
+
+# Stopping GDM can blank the active screen or switch VTs. Doing it here means
+# this already-running process continues directly into the DRM compositor.
+if [ "$STOP_GDM" -eq 1 ]; then
+  systemctl stop gdm3
 fi
 
 exec docker run -it \
