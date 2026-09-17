@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+: "${SEATD_SOCK:?seatd-launch did not provide a seat socket}"
+
+# seatd-launch was started as root so that it can control the VT. Make its
+# socket available to the unprivileged compositor before changing identity.
+chown "$HYPRLAND_UID:$HYPRLAND_INPUT_GID" "$SEATD_SOCK"
+chmod 0660 "$SEATD_SOCK"
+
+exec setpriv \
+  --reuid="$HYPRLAND_UID" \
+  --regid="$HYPRLAND_GID" \
+  --groups="$HYPRLAND_INPUT_GID,$HYPRLAND_VIDEO_GID,$HYPRLAND_RENDER_GID" \
+  --bounding-set=-all \
+  --inh-caps=-all \
+  --reset-env \
+  env \
+    HOME=/home/hyprland \
+    USER=hyprland \
+    LOGNAME=hyprland \
+    PATH=/opt/hypr-clang/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    LD_LIBRARY_PATH=/opt/hypr-clang/lib \
+    XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+    SEATD_SOCK="$SEATD_SOCK" \
+    /opt/hypr-clang/bin/Hyprland "$@"

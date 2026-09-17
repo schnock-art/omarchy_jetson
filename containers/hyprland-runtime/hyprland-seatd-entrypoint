@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+
+: "${HYPRLAND_UID:=2002}"
+: "${HYPRLAND_GID:=2002}"
+: "${HYPRLAND_INPUT_GID:=996}"
+: "${HYPRLAND_VIDEO_GID:=44}"
+: "${HYPRLAND_RENDER_GID:=993}"
+: "${XDG_RUNTIME_DIR:=/tmp/hypr-runtime}"
+
+export HYPRLAND_UID HYPRLAND_GID HYPRLAND_INPUT_GID HYPRLAND_VIDEO_GID HYPRLAND_RENDER_GID XDG_RUNTIME_DIR
+
+install -d -m 0700 -o "$HYPRLAND_UID" -g "$HYPRLAND_GID" "$XDG_RUNTIME_DIR"
+
+# seatd-launch is intentionally the only root portion. It claims the active
+# VT/DRM seat, then invokes hyprland-unprivileged, which transfers ownership of
+# its socket and drops all the way to the dedicated user.
+exec seatd-launch -- /usr/local/bin/hyprland-unprivileged "$@"

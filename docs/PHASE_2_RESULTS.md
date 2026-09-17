@@ -63,3 +63,13 @@ The retained log identifies the precise boundary: the container has no active ph
 This is not an NVIDIA EGL, GBM, or Hyprland build failure; graphics initialization has not yet been reached. No host display, Wayland socket, or desktop service was mounted into the test container, and the host session was not changed.
 
 The next meaningful runtime test must run on the Jetson's active local VT/seat, coordinated with stopping the currently active compositor or display manager. That step can affect the visible desktop and should be performed with SSH already connected as the recovery path.
+
+## First real DRM session: successful rendering, missing input metadata
+
+The local-VT test subsequently started the NVIDIA DRM backend successfully. Aquamarine selected `/dev/dri/card2` (`nvidia-drm`), detected the connected DP-1 monitor and its preferred 2560×1440 mode, created a GBM allocator, and initialized an OpenGL ES 3.2 renderer reporting `NVIDIA Tegra Orin (nvgpu)/integrated`. This is the first real Hyprland graphics-session proof on the Jetson.
+
+The initial container had no `/run/udev` and therefore no host udev database. Although `/dev/input/event0` through `event14` were visible, `hyprctl devices` reported no keyboards, mice, tablets, touch devices, or switches. This is expected: libinput requires udev's `ID_INPUT` and `ID_INPUT_*` properties to classify event nodes. It is not an Aquamarine or NVIDIA rendering failure.
+
+`containers/hyprland-runtime/` now defines a derived `hyprland:phase2-runtime` image. Its entrypoint starts `seatd` only long enough to claim the active VT, transfers the seat socket to an unprivileged `hyprland` user, then drops privileges before executing Hyprland. The root-bypass flag is therefore not used by the derived image.
+
+`scripts/run-hyprland-drm.sh` is the corresponding host-side launcher. It intentionally uses only the required DRM, input, VT, NVIDIA, and read-only `/run/udev` bindings. It adds `c 13:* rwm` so USB input devices connected after container creation can be opened; the `/dev/input` mapping already covers event devices existing at start. The next run will validate enumeration and hot-plug with this image/launcher pair.
