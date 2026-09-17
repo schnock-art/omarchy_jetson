@@ -36,4 +36,12 @@ The Qt-version/private-header issue was isolated with an Ubuntu 26.04 ARM64 cont
 
 This establishes that current Quickshell source can compile for ARM64 when supplied with a sufficiently new Qt and its private headers. It does not yet establish runtime compatibility on Jetson's L4T R39.2.1 userspace, nor does it validate the NVIDIA GBM/EGL path. The retained build container is `quickshell-phase1-artifact`; it can be removed after the runtime experiment.
 
+## Controlled Wayland runtime smoke test
+
+Started a detached Weston 13 headless compositor on a temporary per-user Wayland socket and launched the retained ARM64 Quickshell binary from a container with that socket mounted read/write. The minimal QML configuration reached `WORKSHOP_WAYLAND_SMOKE_OK`, proving that Quickshell can connect to a Wayland compositor and initialize its QML shell.
+
+The first nested test used Weston’s Pixman renderer. A follow-up test used the real DRM Weston session on `/dev/dri/card2` with NVIDIA EGL/GL and launched the containerized Quickshell with the NVIDIA runtime and `/dev/dri` exposed. It reached `WORKSHOP_WAYLAND_SMOKE_OK` without the earlier Mesa/Zink errors. The remaining `egl: failed to create dri2 screen` warnings come from the container’s EGL probing; Weston itself had already confirmed the native NVIDIA EGL path. The temporary Quickshell runtime container was removed; the build image remains available as `quickshell:phase1`.
+
+A visible normal Wayland window also loaded successfully from `tests/runtime-smoke/panel.qml`. A `PanelWindow` variant was rejected because this Weston desktop shell does not advertise the layer-shell protocol; the next integration phase must use a layer-shell-capable compositor or temporarily use normal windows for UI work.
+
 Do not add the user to a Docker group or change device permissions solely for this experiment without reviewing the security and baseline implications.
