@@ -5,6 +5,7 @@ set -eu
 STOP_GDM=0
 CHECK_ONLY=0
 PANEL=0
+QUATTRO=0
 ACTIVE_TTY=
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 TEST_CONFIG="$SCRIPT_DIR/../tests/runtime-smoke/hyprland.conf"
@@ -13,10 +14,12 @@ while [ "$#" -gt 0 ]; do
     --stop-gdm) STOP_GDM=1; shift ;;
     --check) CHECK_ONLY=1; shift ;;
     --panel) PANEL=1; shift ;;
+    --quattro) QUATTRO=1; shift ;;
     --tty) [ "$#" -ge 2 ] || exit 2; ACTIVE_TTY=$2; shift 2 ;;
-    *) echo "Usage: $0 [--stop-gdm] [--panel] [--check] [--tty /dev/ttyN]" >&2; exit 2 ;;
+    *) echo "Usage: $0 [--stop-gdm] [--panel|--quattro] [--check] [--tty /dev/ttyN]" >&2; exit 2 ;;
   esac
 done
+[ "$PANEL" -eq 0 ] || [ "$QUATTRO" -eq 0 ] || { echo "Choose --panel or --quattro, not both." >&2; exit 2; }
 
 # Capture the original console BEFORE sudo creates its own pseudo-terminal.
 ACTIVE_TTY=${ACTIVE_TTY:-${SUDO_TTY:-$(tty 2>/dev/null || true)}}
@@ -37,6 +40,7 @@ case "$(id -u)" in
     [ "$STOP_GDM" -eq 0 ] || set -- "$@" --stop-gdm
     [ "$CHECK_ONLY" -eq 0 ] || set -- "$@" --check
     [ "$PANEL" -eq 0 ] || set -- "$@" --panel
+    [ "$QUATTRO" -eq 0 ] || set -- "$@" --quattro
     exec sudo -- "$(readlink -f "$0")" "$@" ;;
 esac
 
@@ -55,12 +59,20 @@ docker image inspect hyprland:phase2-runtime >/dev/null
 [ -r "$TEST_CONFIG" ] || { echo "Missing test config: $TEST_CONFIG" >&2; exit 1; }
 command -v chvt >/dev/null
 command -v fgconsole >/dev/null
-if [ "$PANEL" -eq 1 ]; then
+if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   docker image inspect quickshell:phase1 >/dev/null
-  [ -r "$SCRIPT_DIR/../tests/runtime-smoke/layer-panel.qml" ]
-  [ -r "$SCRIPT_DIR/../tests/runtime-smoke/run-layer-panel.sh" ]
-  if docker container inspect quickshell-layer-smoke >/dev/null 2>&1; then
-    echo "Container quickshell-layer-smoke already exists; preserve or remove it before another panel test." >&2
+  QS_CONTAINER=quickshell-layer-smoke
+  QS_RUNNER="$SCRIPT_DIR/../tests/runtime-smoke/run-layer-panel.sh"
+  if [ "$QUATTRO" -eq 1 ]; then
+    QS_CONTAINER=quickshell-quattro-smoke
+    QS_RUNNER="$SCRIPT_DIR/../tests/runtime-smoke/run-quattro-shell.sh"
+    [ -d /home/looco/omarchy/shell ]
+  else
+    [ -r "$SCRIPT_DIR/../tests/runtime-smoke/layer-panel.qml" ]
+  fi
+  [ -r "$QS_RUNNER" ]
+  if docker container inspect "$QS_CONTAINER" >/dev/null 2>&1; then
+    echo "Container $QS_CONTAINER already exists; preserve or remove it before another shell test." >&2
     exit 1
   fi
 fi
@@ -86,8 +98,8 @@ cleanup() {
   result=$?
   trap - EXIT HUP INT TERM
   if [ "$PANEL_STARTED" -eq 1 ]; then
-    docker stop --time 3 quickshell-layer-smoke >/dev/null 2>&1 || true
-    echo "Panel logs retained: sudo docker logs quickshell-layer-smoke"
+    docker stop --time 3 "$QS_CONTAINER" >/dev/null 2>&1 || true
+    echo "Quickshell logs retained: sudo docker logs $QS_CONTAINER"
   fi
   docker stop --time 5 hyprland-phase2-drm >/dev/null 2>&1 || true
   if [ "$RESTORE_GDM" -eq 1 ]; then
@@ -145,23 +157,28 @@ chvt "$VT_NUMBER"
 [ "$(fgconsole)" = "$VT_NUMBER" ] || { echo "Failed to activate $ACTIVE_TTY" >&2; exit 1; }
 
 set --
-if [ "$PANEL" -eq 1 ]; then
+if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   # An isolated volume shares only this test's runtime directory, not the host's.
   RUNTIME_VOLUME="jetson-wayland-$(date +%Y%m%d-%H%M%S)-$$"
   docker volume create "$RUNTIME_VOLUME" >/dev/null
   echo "Shared runtime volume retained for diagnostics: $RUNTIME_VOLUME"
   PANEL_STARTED=1
-  docker run -d --name quickshell-layer-smoke \
+  QS_ARGS="--mount type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly"
+  if [ "$QUATTRO" -eq 1 ]; then
+    QS_ARGS="$QS_ARGS --mount type=bind,src=/home/looco/omarchy,dst=/omarchy,readonly -e OMARCHY_PATH=/omarchy -e QML_IMPORT_PATH=/omarchy/shell"
+  fi
+  # shellcheck disable=SC2086
+  docker run -d --name "$QS_CONTAINER" \
     --network none --runtime=nvidia --gpus all --device=/dev/dri \
     --user "$HOST_UID:$HOST_GID" \
     --group-add "$VIDEO_GID" --group-add "$RENDER_GID" \
     --mount "type=volume,src=$RUNTIME_VOLUME,dst=/tmp/hypr-runtime" \
-    --mount "type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly" \
+    $QS_ARGS \
     -e HOME=/tmp -e XDG_RUNTIME_DIR=/tmp/hypr-runtime \
     --mount type=bind,src=/etc/localtime,dst=/etc/localtime,readonly \
     -e LANG=C.UTF-8 \
     -e QT_QPA_PLATFORM=wayland \
-    --entrypoint sh quickshell:phase1 /test/run-layer-panel.sh
+    --entrypoint sh quickshell:phase1 "$QS_RUNNER"
   set -- --mount "type=volume,src=$RUNTIME_VOLUME,dst=/tmp/hypr-runtime"
 fi
 

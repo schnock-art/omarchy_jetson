@@ -211,3 +211,28 @@ check (`2021-01-01` is week 53). This checks the clock adapter, not layer-shell
 rendering. The upstream model copy was verified byte-for-byte. The next visual
 check uses the same `--stop-gdm --panel` command; verify seconds tick and
 right-click changes the clock format before exiting with Super+Shift+E.
+
+## Full-shell compatibility harness
+
+Manual component-by-component testing is no longer the default approach. The
+runtime launcher now supports `--quattro`, which runs Omarchy's real
+`shell/shell.qml` in a disposable sibling Quickshell container. The Omarchy
+checkout is mounted read-only at `/omarchy`; the shell receives a fresh runtime
+directory and an empty temporary home, so no host Omarchy configuration or
+plugin state is changed. One physical run can therefore report all first-load
+errors, then subsequent runs validate groups of dependencies rather than a
+single widget at a time.
+
+The first headless compatibility pass reaches `shell.qml` and its Bar import.
+It stops at `module "Quickshell.Hyprland" is not installed`. The retained
+Quickshell 0.3.1 build was explicitly configured with `HYPRLAND=OFF`; Omarchy's
+bar imports that module. Upstream Quickshell documents no extra dependency for
+the module beyond Wayland, so an isolated rebuild is in progress with the
+original feature profile and only `HYPRLAND=ON` changed. This is a build-feature
+gap, not a QML source-porting issue.
+
+After the feature-enabled image is verified, `--quattro` will use it and the
+next full-shell run replaces the component loop. The physical test remains one
+manual session because only the active local VT can validate DRM, input, and
+layer surfaces; failures and import/service discovery are automated in the
+container logs.
