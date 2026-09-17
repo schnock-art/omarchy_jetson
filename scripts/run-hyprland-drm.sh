@@ -23,7 +23,9 @@ RENDER_GID=$(getent group render | cut -d: -f3)
 
 [ -n "$INPUT_GID" ] && [ -n "$VIDEO_GID" ] && [ -n "$RENDER_GID" ]
 [ -d /run/udev/data ] || { echo "/run/udev/data is unavailable; host udev is required." >&2; exit 1; }
-ACTIVE_TTY=$(tty)
+# Ubuntu's sudo may enable use_pty, which makes `tty` inside the root process
+# report /dev/pts/N. SUDO_TTY retains the caller's actual physical VT.
+ACTIVE_TTY=${SUDO_TTY:-$(tty)}
 case "$ACTIVE_TTY" in
   /dev/tty[0-9]*) ;;
   *) echo "Run from a physical Ctrl+Alt+F<n> console, not SSH or a terminal emulator." >&2; exit 1 ;;

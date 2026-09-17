@@ -77,3 +77,5 @@ The initial container had no `/run/udev` and therefore no host udev database. Al
 The launcher determines the active text VT at runtime rather than assuming a fixed F-key mapping. On this host `Ctrl+Alt+F1` is GDM's graphical login; use a spare text console such as `Ctrl+Alt+F3`, log in there, stop GDM, and then run the launcher from that same console.
 
 To avoid an interactive gap on systems where stopping GDM blanks or changes the active VT, invoke the launcher with `--stop-gdm`. It stops GDM and immediately continues into the container from the already active text-console process.
+
+Ubuntu may configure `sudo` with `use_pty`, causing `tty` inside a sudo command to report `/dev/pts/N` even when the user invoked it from a real VT. The launcher uses `SUDO_TTY` when supplied, preserving the original `/dev/ttyN` for device passthrough.
