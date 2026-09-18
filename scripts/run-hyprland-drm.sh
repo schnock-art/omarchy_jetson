@@ -71,9 +71,10 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
     QS_IMAGE=quickshell:phase1-hypr-services
     QS_BIN=/tmp/quickshell-services-build/src/quickshell
     [ -d /home/looco/omarchy/shell ]
-    DBUS_SOCKET=/run/user/$HOST_UID/bus
-    [ -S "$DBUS_SOCKET" ] || {
-      echo "The host user D-Bus socket is unavailable: $DBUS_SOCKET" >&2
+    DBUS_RUNTIME_DIR=/run/user/$HOST_UID
+    DBUS_SOCKET=$DBUS_RUNTIME_DIR/bus
+    [ -d "$DBUS_RUNTIME_DIR" ] && [ -S "$DBUS_SOCKET" ] || {
+      echo "The host user D-Bus runtime is unavailable: $DBUS_RUNTIME_DIR" >&2
       echo "Log in as $HOST_USER once before starting the Quattro test." >&2
       exit 1
     }
@@ -176,7 +177,7 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   QS_ARGS="--mount type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly"
   if [ "$QUATTRO" -eq 1 ]; then
     QS_ARGS="$QS_ARGS --mount type=bind,src=/home/looco/omarchy,dst=/omarchy,readonly"
-    QS_ARGS="$QS_ARGS --mount type=bind,src=$DBUS_SOCKET,dst=$DBUS_SOCKET"
+    QS_ARGS="$QS_ARGS --mount type=bind,src=$DBUS_RUNTIME_DIR,dst=$DBUS_RUNTIME_DIR"
     QS_ARGS="$QS_ARGS -e OMARCHY_PATH=/omarchy -e QML_IMPORT_PATH=/omarchy/shell"
     QS_ARGS="$QS_ARGS -e DBUS_SESSION_BUS_ADDRESS=unix:path=$DBUS_SOCKET"
   fi

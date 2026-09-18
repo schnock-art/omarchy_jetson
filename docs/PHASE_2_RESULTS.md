@@ -300,8 +300,11 @@ in the disposable copy. The upstream checkout is not modified.
 
 ## Follow-up: session D-Bus bridge
 
-The Quattro runner now requires and exposes only the host user's session bus
-socket (`/run/user/2002/bus`) to the Quickshell sidecar. It sets
+The Quattro runner now requires and exposes the host user's runtime directory
+(`/run/user/2002`) to the Quickshell sidecar so the session bus can authenticate;
+the relevant bus socket is `/run/user/2002/bus`. It sets
 `DBUS_SESSION_BUS_ADDRESS` inside the container while retaining the existing
 network isolation. This enables controlled host-side notification delivery
-without exposing the host filesystem or network to the sidecar.
+without exposing the host filesystem or network to the sidecar. The runner also
+uses an explicit fontconfig file without producing a false "not a directory"
+warning.

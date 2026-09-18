@@ -32,7 +32,7 @@ cat > /tmp/omarchy-fontconfig/fonts.conf <<'EOF'
 </fontconfig>
 EOF
 export FONTCONFIG_FILE=/tmp/omarchy-fontconfig/fonts.conf
-fc-cache -f "$FONTCONFIG_FILE" >/dev/null
+fc-cache -f >/dev/null
 echo "Omarchy icon font: $(fc-match -f '%{family}\n' omarchy)"
 
 remaining=60
