@@ -78,6 +78,17 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
       echo "Log in as $HOST_USER once before starting the Quattro test." >&2
       exit 1
     }
+    # Test the real bus handshake before stopping GDM. Docker's AppArmor
+    # profile blocks Hello on this host; relax it only for this test sidecar.
+    QS_BUS_ARGS="--security-opt apparmor=unconfined --mount type=bind,src=$DBUS_SOCKET,dst=/tmp/host-session-bus,readonly -e DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/host-session-bus"
+    # shellcheck disable=SC2086
+    docker run --rm --network none --user "$HOST_UID:$HOST_GID" \
+      $QS_BUS_ARGS --entrypoint gdbus "$QS_IMAGE" call --session \
+      --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus \
+      --method org.freedesktop.DBus.GetId >/dev/null || {
+        echo "Container session D-Bus handshake failed; desktop has not been stopped." >&2
+        exit 1
+      }
   else
     [ -r "$SCRIPT_DIR/../tests/runtime-smoke/layer-panel.qml" ]
   fi
@@ -177,9 +188,8 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   QS_ARGS="--mount type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly"
   if [ "$QUATTRO" -eq 1 ]; then
     QS_ARGS="$QS_ARGS --mount type=bind,src=/home/looco/omarchy,dst=/omarchy,readonly"
-    QS_ARGS="$QS_ARGS --mount type=bind,src=$DBUS_RUNTIME_DIR,dst=$DBUS_RUNTIME_DIR"
+    QS_ARGS="$QS_ARGS $QS_BUS_ARGS"
     QS_ARGS="$QS_ARGS -e OMARCHY_PATH=/omarchy -e QML_IMPORT_PATH=/omarchy/shell"
-    QS_ARGS="$QS_ARGS -e DBUS_SESSION_BUS_ADDRESS=unix:path=$DBUS_SOCKET"
   fi
   # shellcheck disable=SC2086
   docker run -d --name "$QS_CONTAINER" \

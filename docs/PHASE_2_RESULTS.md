@@ -300,11 +300,18 @@ in the disposable copy. The upstream checkout is not modified.
 
 ## Follow-up: session D-Bus bridge
 
-The Quattro runner now requires and exposes the host user's runtime directory
-(`/run/user/2002`) to the Quickshell sidecar so the session bus can authenticate;
-the relevant bus socket is `/run/user/2002/bus`. It sets
-`DBUS_SESSION_BUS_ADDRESS` inside the container while retaining the existing
-network isolation. This enables controlled host-side notification delivery
-without exposing the host filesystem or network to the sidecar. The runner also
-uses an explicit fontconfig file without producing a false "not a directory"
-warning.
+The initial socket mount and subsequent whole-runtime-directory mount both
+failed. A read-only `gdbus` probe reproduced an explicit AppArmor denial of the
+D-Bus `Hello` handshake. The identical probe with container-local
+`--security-opt apparmor=unconfined` successfully called `GetId`.
+
+The Quattro sidecar now mounts only `/run/user/2002/bus` at
+`/tmp/host-session-bus` and uses that address. AppArmor confinement is disabled
+for this experimental sidecar and its preflight probe only. The container still
+runs as UID 2002 with network isolation; the system bus is not mounted. Session
+bus access grants access to user services, and a read-only socket mount does not
+restrict D-Bus method calls. This is a development harness, not a hardened deployment.
+
+The launcher tests `GetId` with the same image, UID, mount and security options
+before stopping GDM. Bus connectivity is verified; notification ownership and
+visible delivery still require the physical-session test.
