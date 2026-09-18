@@ -90,3 +90,12 @@ than the original checkout entry point, keeping relative QML imports within
 the compatibility copy. The power panel emits JETSON_POWER_PANEL_LOADED on
 creation to distinguish a loading problem from a visual one. Physical rendering
 of the corrected icons and power panel remains to be checked.
+
+## Physical result — 2026-09-18
+
+The lab runtime was tested on the Jetson display. Network information appeared;
+Bluetooth power toggled successfully; Nerd Font glyphs rendered after the font
+image update; and the corrected Jetson power icon appeared and opened its panel.
+This confirms the visible lab-status batch end to end. The power panel showed
+the NVIDIA mode read at startup. No network change, pairing, profile change,
+suspend, reboot, or NVIDIA mode change was performed.
