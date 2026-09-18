@@ -288,3 +288,12 @@ The full Quattro image is now rebuilt as `quickshell:phase1-hypr-services` with
 `SERVICE_STATUS_NOTIFIER` enabled. CMake detected all five integrations and
 the ARM64 Quickshell 0.3.1 binary passed its version check. The launcher uses
 this image only for `--quattro`; the minimal layer-panel test is unchanged.
+
+## Follow-up: notification-service compatibility
+
+The service-enabled runtime loaded the requested Quickshell modules, but
+Omarchy's notification service reported a QML parse error at `Service.qml:149`.
+The offending local variable was named `transient`, which the Qt/QML parser
+treats as reserved in this context. The runtime runner now copies the
+read-only Omarchy tree to `/tmp/omarchy-runtime` and renames that variable only
+in the disposable copy. The upstream checkout is not modified.
