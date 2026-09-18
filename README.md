@@ -22,6 +22,7 @@ The largest uncertainty is not ARM64 itself; it is whether a usable Hyprland/Way
 - [Porting options](docs/PORTING_OPTIONS.md)
 - [Risks](docs/RISKS.md)
 - [Phase 1 plan](docs/PHASE_1_PLAN.md)
+- [Quattro lab startup](docs/STARTUP_WORKFLOW.md)
 
 ## Status
 
