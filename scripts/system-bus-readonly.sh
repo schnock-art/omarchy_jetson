@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
-# Run as the desktop user. No broad --talk rules: only queries and signals.
+# Run as the desktop user. Queries/signals plus BlueZ property writes for
+# the explicitly enabled Bluetooth toggle. Network/power writes stay blocked.
 set -- unix:path=/run/dbus/system_bus_socket "$1" --filter
 for service in org.freedesktop.NetworkManager org.bluez org.freedesktop.UPower net.hadess.PowerProfiles org.freedesktop.UPower.PowerProfiles; do
   set -- "$@" "--see=$service" \
@@ -12,6 +13,7 @@ for service in org.freedesktop.NetworkManager org.bluez org.freedesktop.UPower n
     "--broadcast=$service=org.freedesktop.DBus.ObjectManager.*"
 done
 set -- "$@" \
+  --call=org.bluez=org.freedesktop.DBus.Properties.Set \
   --call=org.freedesktop.NetworkManager=org.freedesktop.NetworkManager.GetDevices \
   --call=org.freedesktop.NetworkManager=org.freedesktop.NetworkManager.GetAllDevices \
   --call=org.freedesktop.NetworkManager=org.freedesktop.NetworkManager.GetPermissions \

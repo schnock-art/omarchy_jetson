@@ -9,6 +9,7 @@ set -eu
 OMARCHY_RUNTIME=/tmp/omarchy-runtime
 install -d -m 0755 "$OMARCHY_RUNTIME"
 cp -a /omarchy/. "$OMARCHY_RUNTIME/"
+cp /test/jetson-power.qml "$OMARCHY_RUNTIME/shell/plugins/panels/power/Panel.qml"
 sed -i \
   -e 's/var transient = false/var transientHint = false/' \
   -e 's/transient = !!(notification\.hints/transientHint = !!(notification.hints/' \

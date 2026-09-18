@@ -1,0 +1,28 @@
+#!/usr/bin/python3
+"""Session-only BlueZ power control; no rfkill or reboot persistence."""
+import sys
+from gi.repository import Gio, GLib
+
+try:
+    action = sys.argv[1] if len(sys.argv) == 2 else ""
+    if action not in ("on", "off", "toggle", "is-on"):
+        sys.exit("Usage: omarchy-bluetooth-power on|off|toggle|is-on")
+    bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+    objects = bus.call_sync("org.bluez", "/", "org.freedesktop.DBus.ObjectManager",
+        "GetManagedObjects", None, GLib.VariantType("(a{oa{sa{sv}}})"),
+        Gio.DBusCallFlags.NONE, 3000, None).unpack()[0]
+    adapters = sorted((p, i["org.bluez.Adapter1"]) for p, i in objects.items()
+                      if "org.bluez.Adapter1" in i)
+    if len(adapters) != 1:
+        sys.exit("Expected one Bluetooth adapter; refusing ambiguous selection")
+    path, props = adapters[0]
+    powered = props.get("Powered", False)
+    if action == "is-on":
+        sys.exit(0 if powered else 1)
+    target = not powered if action == "toggle" else action == "on"
+    bus.call_sync("org.bluez", path, "org.freedesktop.DBus.Properties", "Set",
+        GLib.Variant("(ssv)", ("org.bluez.Adapter1", "Powered", GLib.Variant("b", target))),
+        None, Gio.DBusCallFlags.NONE, 5000, None)
+    print("Bluetooth power requested:", "on" if target else "off")
+except GLib.Error as error:
+    sys.exit(str(error))

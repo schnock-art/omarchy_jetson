@@ -70,6 +70,7 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
     QS_RUNNER=/test/run-quattro-shell.sh
     QS_IMAGE=quickshell:phase1-hypr-lab
     QS_BIN=/tmp/quickshell-services-build/src/quickshell
+    JETSON_POWER_MODE=$(timeout 5 nvpmodel -q 2>/dev/null || echo "NVIDIA power mode unavailable")
     PW_SOCKET=/run/user/$HOST_UID/pipewire-0
     [ -S "$PW_SOCKET" ] || { echo "Host PipeWire socket missing: $PW_SOCKET" >&2; exit 1; }
     QS_AUDIO_ARGS="--mount type=bind,src=$PW_SOCKET,dst=/tmp/host-pipewire,readonly -e PIPEWIRE_REMOTE=/tmp/host-pipewire"
@@ -249,6 +250,7 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
     $QS_ARGS \
     -e HOME=/tmp -e XDG_RUNTIME_DIR=/tmp/hypr-runtime \
     -e QS_BIN="$QS_BIN" \
+    -e JETSON_POWER_MODE="${JETSON_POWER_MODE:-}" \
     --mount type=bind,src=/etc/localtime,dst=/etc/localtime,readonly \
     -e LANG=C.UTF-8 \
     -e QT_QPA_PLATFORM=wayland \

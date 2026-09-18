@@ -50,3 +50,26 @@ Exit with Super+Shift+E and confirm normal desktop recovery.
 
 Pairing, switching networks, suspend/reboot, NVIDIA power-mode controls and
 Jetson telemetry in the panel require subsequent work. No such action was run.
+
+## Follow-up: Bluetooth toggle and Jetson power panel
+
+The user confirmed network visibility. The unresponsive Bluetooth toggle also
+called an absent `omarchy-bluetooth-power` helper. A container-local replacement
+now uses GIO to write BlueZ Adapter1.Powered for the single detected adapter.
+The proxy permits BlueZ Properties.Set (not limited to Powered by the proxy;
+the helper limits its own operation to Powered). Network and power-profile
+writes remain blocked. Bluetooth pairing/discovery methods remain blocked.
+This is session-only power control, not upstream rfkill persistence. A hard or
+soft radio block may prevent powering on and is not overridden by this helper.
+
+The helper was tested through the filtered socket: off, confirmed off, on,
+confirmed on, restored original on state. No connected Bluetooth devices were
+listed before the test. Physical button operation still requires confirmation.
+
+Upstream power UI gates opening on battery presence. The disposable runtime
+copy now substitutes a Jetson panel with a text PWR button and NVIDIA mode
+queried by `nvpmodel -q` at session start. This is explicitly a snapshot of the
+configured mode, not current wattage or live telemetry. It enables no mode
+changes. Qt's QML formatter parsed the panel successfully; full visual loading
+remains unverified. A headless Weston attempt failed due to a host backend
+library symbol error, before connecting Quickshell. No host library was changed.
