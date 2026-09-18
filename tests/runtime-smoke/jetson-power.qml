@@ -9,13 +9,15 @@ Panel {
   ipcTarget: "omarchy.power"
   readonly property string powerMode: Quickshell.env("JETSON_POWER_MODE") || "Unavailable"
   Component.onCompleted: console.log("JETSON_POWER_PANEL_LOADED", powerMode)
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
 
   BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "PWR"
-    slotSize: Style.bar.iconSlot * 2
+    text: "󰐥"
+    slotSize: Style.bar.iconSlot
     tooltipText: "Jetson power mode"
     onPressed: root.toggle()
   }
