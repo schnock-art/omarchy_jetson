@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.jetson-telemetry",
+  "name": "Jetson telemetry",
+  "version": "1.0.0",
+  "author": "Omarchy Jetson lab",
+  "description": "Read-only NVIDIA Jetson performance telemetry",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "Panel.qml" },
+  "barWidget": {
+    "displayName": "Jetson telemetry",
+    "description": "Read-only CPU, GPU, thermals, RAM, power, and nvpmodel status",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

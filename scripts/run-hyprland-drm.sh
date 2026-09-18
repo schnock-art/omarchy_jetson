@@ -119,6 +119,7 @@ if docker container inspect hyprland-phase2-drm >/dev/null 2>&1; then
   exit 1
 fi
 SYSTEM_PROXY_PID=
+TELEMETRY_PID=
 stop_system_proxy() {
   if [ -n "$SYSTEM_PROXY_PID" ]; then
     kill "$SYSTEM_PROXY_PID" 2>/dev/null || true
@@ -126,7 +127,18 @@ stop_system_proxy() {
     SYSTEM_PROXY_PID=
   fi
 }
-trap stop_system_proxy EXIT
+stop_telemetry() {
+  if [ -n "$TELEMETRY_PID" ]; then
+    kill "$TELEMETRY_PID" 2>/dev/null || true
+    wait "$TELEMETRY_PID" 2>/dev/null || true
+    TELEMETRY_PID=
+  fi
+}
+cleanup_preflight() {
+  stop_telemetry
+  stop_system_proxy
+}
+trap cleanup_preflight EXIT
 if [ "$QUATTRO" -eq 1 ]; then
   command -v xdg-dbus-proxy >/dev/null
   command -v setpriv >/dev/null
@@ -150,6 +162,25 @@ if [ "$QUATTRO" -eq 1 ]; then
     -e QT_QPA_PLATFORM=offscreen -e QS_BIN="$QS_BIN" \
     --entrypoint sh "$QS_IMAGE" -c \
     'mkdir -m 700 /tmp/probe-runtime; timeout 15 "$QS_BIN" --no-color -p /test/system-services-probe.qml'
+  [ -x "$SCRIPT_DIR/collect-jetson-telemetry.sh" ] || {
+    echo "Telemetry collector is missing or not executable: $SCRIPT_DIR/collect-jetson-telemetry.sh" >&2
+    exit 1
+  }
+  TELEMETRY_DIR=$(mktemp -d /tmp/jetson-telemetry.XXXXXX)
+  chown "$HOST_UID:$HOST_GID" "$TELEMETRY_DIR"
+  setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --init-groups \
+    "$SCRIPT_DIR/collect-jetson-telemetry.sh" "$TELEMETRY_DIR/telemetry.json" \
+    >"$TELEMETRY_DIR/collector.log" 2>&1 &
+  TELEMETRY_PID=$!
+  for attempt in 1 2 3 4 5; do
+    [ -s "$TELEMETRY_DIR/telemetry.json" ] && break
+    sleep 1
+  done
+  [ -s "$TELEMETRY_DIR/telemetry.json" ] || {
+    echo "Telemetry collector failed: $TELEMETRY_DIR/collector.log" >&2
+    exit 1
+  }
+  QS_TELEMETRY_ARGS="--mount type=bind,src=$TELEMETRY_DIR,dst=/tmp/jetson-telemetry,readonly"
 fi
 echo "Preflight passed: console=$ACTIVE_TTY, image=hyprland:phase2-runtime, uid=$HOST_UID"
 [ "$CHECK_ONLY" -eq 0 ] || exit 0
@@ -173,6 +204,7 @@ cleanup() {
     echo "Quickshell logs retained: sudo docker logs $QS_CONTAINER"
   fi
   docker stop --time 5 hyprland-phase2-drm >/dev/null 2>&1 || true
+  stop_telemetry
   stop_system_proxy
   if [ "$RESTORE_GDM" -eq 1 ]; then
     systemctl start gdm3 || true
@@ -238,7 +270,7 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   QS_ARGS="--mount type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly"
   if [ "$QUATTRO" -eq 1 ]; then
     QS_ARGS="$QS_ARGS --mount type=bind,src=/home/looco/omarchy,dst=/omarchy,readonly"
-    QS_ARGS="$QS_ARGS $QS_BUS_ARGS $QS_AUDIO_ARGS $QS_SYSTEM_ARGS"
+    QS_ARGS="$QS_ARGS $QS_BUS_ARGS $QS_AUDIO_ARGS $QS_SYSTEM_ARGS $QS_TELEMETRY_ARGS"
     QS_ARGS="$QS_ARGS -e OMARCHY_PATH=/omarchy -e QML_IMPORT_PATH=/omarchy/shell"
   fi
   # shellcheck disable=SC2086

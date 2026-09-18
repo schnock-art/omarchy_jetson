@@ -10,12 +10,31 @@ OMARCHY_RUNTIME=/tmp/omarchy-runtime
 install -d -m 0755 "$OMARCHY_RUNTIME"
 cp -a /omarchy/. "$OMARCHY_RUNTIME/"
 cp /test/jetson-power.qml "$OMARCHY_RUNTIME/shell/plugins/panels/power/Panel.qml"
+install -d -m 0755 "$OMARCHY_RUNTIME/shell/plugins/panels/jetson-telemetry"
+cp -a /test/jetson-telemetry/. "$OMARCHY_RUNTIME/shell/plugins/panels/jetson-telemetry/"
 sed -i \
   -e 's/var transient = false/var transientHint = false/' \
   -e 's/transient = !!(notification\.hints/transientHint = !!(notification.hints/' \
   -e 's/{ transient = false }/{ transientHint = false }/' \
   -e 's/return transient || NotificationLogic/return transientHint || NotificationLogic/' \
   "$OMARCHY_RUNTIME/shell/plugins/notifications/Service.qml"
+python3 - "$OMARCHY_RUNTIME/config/omarchy/shell.json" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as source:
+    config = json.load(source)
+right = config["bar"]["layout"]["right"]
+entry = {"id": "omarchy.jetson-telemetry"}
+if entry not in right:
+    # Keep hardware status together: telemetry sits immediately before PWR.
+    power_index = next((i for i, item in enumerate(right) if item.get("id") == "omarchy.power"), len(right))
+    right.insert(power_index, entry)
+with open(path, "w", encoding="utf-8") as target:
+    json.dump(config, target, indent=2)
+    target.write("\n")
+PY
 export OMARCHY_PATH="$OMARCHY_RUNTIME"
 export QML_IMPORT_PATH="$OMARCHY_RUNTIME/shell"
 export PATH="/test/helpers:$PATH"
