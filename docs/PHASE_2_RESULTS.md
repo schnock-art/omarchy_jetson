@@ -315,3 +315,16 @@ restrict D-Bus method calls. This is a development harness, not a hardened deplo
 The launcher tests `GetId` with the same image, UID, mount and security options
 before stopping GDM. Bus connectivity is verified; notification ownership and
 visible delivery still require the physical-session test.
+
+## Confirmed notification delivery and audio preparation — 2026-09-18
+
+The user confirmed the SSH `notify-send` test produced a visible Quattro popup
+after the AppArmor adjustment. This validates host-to-container notification
+delivery. Manual dismissal and automatic expiry have not yet been reported.
+
+The next image, `quickshell:phase1-hypr-audio`, supplies missing PipeWire client
+configuration and runtime modules. A display-free test using the actual
+Quickshell PipeWire module successfully read the Jetson's analog output at 40%
+volume, unmuted. The launcher mounts only the audio socket and runs this probe
+before GDM shutdown. Physical panel interaction and audible playback remain
+unverified. See [AUDIO_TEST.md](AUDIO_TEST.md) for reproduction and acceptance.

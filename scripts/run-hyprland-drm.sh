@@ -68,8 +68,23 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   if [ "$QUATTRO" -eq 1 ]; then
     QS_CONTAINER=quickshell-quattro-smoke
     QS_RUNNER=/test/run-quattro-shell.sh
-    QS_IMAGE=quickshell:phase1-hypr-services
+    QS_IMAGE=quickshell:phase1-hypr-audio
     QS_BIN=/tmp/quickshell-services-build/src/quickshell
+    PW_SOCKET=/run/user/$HOST_UID/pipewire-0
+    [ -S "$PW_SOCKET" ] || { echo "Host PipeWire socket missing: $PW_SOCKET" >&2; exit 1; }
+    QS_AUDIO_ARGS="--mount type=bind,src=$PW_SOCKET,dst=/tmp/host-pipewire,readonly -e PIPEWIRE_REMOTE=/tmp/host-pipewire"
+    # Same Quickshell audio module as the panel; read-only, no display needed.
+    # shellcheck disable=SC2086
+    docker run --rm --network none --user "$HOST_UID:$HOST_GID" \
+      $QS_AUDIO_ARGS \
+      --mount "type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly" \
+      -e HOME=/tmp -e LANG=C.UTF-8 -e XDG_RUNTIME_DIR=/tmp/probe-runtime \
+      -e QT_QPA_PLATFORM=offscreen -e QS_BIN="$QS_BIN" \
+      --entrypoint sh "$QS_IMAGE" -c \
+      'mkdir -m 700 /tmp/probe-runtime; timeout 15 "$QS_BIN" --no-color -p /test/audio-probe.qml' || {
+        echo "Quickshell audio probe failed; desktop has not been stopped." >&2
+        exit 1
+      }
     [ -d /home/looco/omarchy/shell ]
     DBUS_RUNTIME_DIR=/run/user/$HOST_UID
     DBUS_SOCKET=$DBUS_RUNTIME_DIR/bus
@@ -188,7 +203,7 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   QS_ARGS="--mount type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly"
   if [ "$QUATTRO" -eq 1 ]; then
     QS_ARGS="$QS_ARGS --mount type=bind,src=/home/looco/omarchy,dst=/omarchy,readonly"
-    QS_ARGS="$QS_ARGS $QS_BUS_ARGS"
+    QS_ARGS="$QS_ARGS $QS_BUS_ARGS $QS_AUDIO_ARGS"
     QS_ARGS="$QS_ARGS -e OMARCHY_PATH=/omarchy -e QML_IMPORT_PATH=/omarchy/shell"
   fi
   # shellcheck disable=SC2086
