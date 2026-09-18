@@ -71,6 +71,12 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
     QS_IMAGE=quickshell:phase1-hypr-services
     QS_BIN=/tmp/quickshell-services-build/src/quickshell
     [ -d /home/looco/omarchy/shell ]
+    DBUS_SOCKET=/run/user/$HOST_UID/bus
+    [ -S "$DBUS_SOCKET" ] || {
+      echo "The host user D-Bus socket is unavailable: $DBUS_SOCKET" >&2
+      echo "Log in as $HOST_USER once before starting the Quattro test." >&2
+      exit 1
+    }
   else
     [ -r "$SCRIPT_DIR/../tests/runtime-smoke/layer-panel.qml" ]
   fi
@@ -169,7 +175,10 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   PANEL_STARTED=1
   QS_ARGS="--mount type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly"
   if [ "$QUATTRO" -eq 1 ]; then
-    QS_ARGS="$QS_ARGS --mount type=bind,src=/home/looco/omarchy,dst=/omarchy,readonly -e OMARCHY_PATH=/omarchy -e QML_IMPORT_PATH=/omarchy/shell"
+    QS_ARGS="$QS_ARGS --mount type=bind,src=/home/looco/omarchy,dst=/omarchy,readonly"
+    QS_ARGS="$QS_ARGS --mount type=bind,src=$DBUS_SOCKET,dst=$DBUS_SOCKET"
+    QS_ARGS="$QS_ARGS -e OMARCHY_PATH=/omarchy -e QML_IMPORT_PATH=/omarchy/shell"
+    QS_ARGS="$QS_ARGS -e DBUS_SESSION_BUS_ADDRESS=unix:path=$DBUS_SOCKET"
   fi
   # shellcheck disable=SC2086
   docker run -d --name "$QS_CONTAINER" \

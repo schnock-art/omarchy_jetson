@@ -297,3 +297,11 @@ The offending local variable was named `transient`, which the Qt/QML parser
 treats as reserved in this context. The runtime runner now copies the
 read-only Omarchy tree to `/tmp/omarchy-runtime` and renames that variable only
 in the disposable copy. The upstream checkout is not modified.
+
+## Follow-up: session D-Bus bridge
+
+The Quattro runner now requires and exposes only the host user's session bus
+socket (`/run/user/2002/bus`) to the Quickshell sidecar. It sets
+`DBUS_SESSION_BUS_ADDRESS` inside the container while retaining the existing
+network isolation. This enables controlled host-side notification delivery
+without exposing the host filesystem or network to the sidecar.
