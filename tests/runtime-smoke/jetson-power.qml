@@ -8,6 +8,7 @@ Panel {
   moduleName: "omarchy.power"
   ipcTarget: "omarchy.power"
   readonly property string powerMode: Quickshell.env("JETSON_POWER_MODE") || "Unavailable"
+  Component.onCompleted: console.log("JETSON_POWER_PANEL_LOADED", powerMode)
 
   BarIconButton {
     id: button

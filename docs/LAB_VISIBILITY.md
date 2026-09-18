@@ -73,3 +73,20 @@ configured mode, not current wattage or live telemetry. It enables no mode
 changes. Qt's QML formatter parsed the panel successfully; full visual loading
 remains unverified. A headless Weston attempt failed due to a host backend
 library symbol error, before connecting Quickshell. No host library was changed.
+
+## Icon-font and power-entry-point correction
+
+The user confirmed Bluetooth button operation, but reported square glyphs and
+no PWR button. The image had only DejaVu Sans Mono for the generic monospace
+family, with no Nerd Font. The lab image now includes JetBrainsMono Nerd Font
+Regular from Nerd Fonts v3.4.0, pinned by SHA256 in the Dockerfile. Source:
+https://github.com/ryanoasis/nerd-fonts/releases/tag/v3.4.0
+The runtime fontconfig prefers this family for monospace. A test as UID 2002
+with HOME=/tmp verified family selection and glyph coverage for Bluetooth
+U+F0293 and Wi-Fi U+F092F. The separate Omarchy logo font still resolves.
+
+The launcher also now starts `/tmp/omarchy-runtime/shell/shell.qml`, rather
+than the original checkout entry point, keeping relative QML imports within
+the compatibility copy. The power panel emits JETSON_POWER_PANEL_LOADED on
+creation to distinguish a loading problem from a visual one. Physical rendering
+of the corrected icons and power panel remains to be checked.

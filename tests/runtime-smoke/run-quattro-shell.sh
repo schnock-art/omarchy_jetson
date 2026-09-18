@@ -31,11 +31,16 @@ cat > /tmp/omarchy-fontconfig/fonts.conf <<'EOF'
 <fontconfig>
   <dir>/tmp/omarchy-fonts</dir>
   <include ignore_missing="yes">/etc/fonts/fonts.conf</include>
+  <alias binding="strong">
+    <family>monospace</family>
+    <prefer><family>JetBrainsMono Nerd Font</family></prefer>
+  </alias>
 </fontconfig>
 EOF
 export FONTCONFIG_FILE=/tmp/omarchy-fontconfig/fonts.conf
 fc-cache -f >/dev/null
 echo "Omarchy icon font: $(fc-match -f '%{family}\n' omarchy)"
+echo "Bar icon font: $(fc-match -f '%{family}\n' monospace)"
 
 remaining=60
 while [ "$remaining" -gt 0 ]; do
@@ -49,7 +54,7 @@ while [ "$remaining" -gt 0 ]; do
         fi
       done
       echo "Launching full Quattro shell on $WAYLAND_DISPLAY as uid $(id -u)"
-      exec "$QS_BIN" --no-color --log-times -v -p /omarchy/shell/shell.qml
+      exec "$QS_BIN" --no-color --log-times -v -p "$OMARCHY_RUNTIME/shell/shell.qml"
     fi
   done
   sleep 1
