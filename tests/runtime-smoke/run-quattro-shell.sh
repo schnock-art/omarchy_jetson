@@ -17,6 +17,7 @@ sed -i \
   "$OMARCHY_RUNTIME/shell/plugins/notifications/Service.qml"
 export OMARCHY_PATH="$OMARCHY_RUNTIME"
 export QML_IMPORT_PATH="$OMARCHY_RUNTIME/shell"
+export PATH="/test/helpers:$PATH"
 
 # The menu glyph is supplied by Omarchy's bundled font. Install it into this
 # disposable container before Qt constructs its font database.

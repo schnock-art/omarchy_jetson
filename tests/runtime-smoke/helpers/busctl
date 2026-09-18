@@ -1,0 +1,22 @@
+#!/usr/bin/python3
+"""Read-only compatibility adapter for Quattro's JSON property queries.
+
+The image's busctl fails against this host's older xdg-dbus-proxy; GIO works.
+Unsupported commands fail explicitly. Never forward writes to an unfiltered bus.
+"""
+import json
+import sys
+from gi.repository import Gio, GLib
+
+args = sys.argv[1:]
+if len(args) != 6 or args[:2] != ["--json=short", "get-property"]:
+    sys.exit("Lab visibility batch: only JSON get-property is supported")
+try:
+    bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+    result = bus.call_sync(args[2], args[3], "org.freedesktop.DBus.Properties",
+        "Get", GLib.Variant("(ss)", (args[4], args[5])),
+        GLib.VariantType("(v)"), Gio.DBusCallFlags.NONE, 3000, None)
+    value = result.get_child_value(0).get_variant()
+    print(json.dumps({"type": value.get_type_string(), "data": value.unpack()}))
+except GLib.Error as error:
+    sys.exit(str(error))

@@ -68,7 +68,7 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   if [ "$QUATTRO" -eq 1 ]; then
     QS_CONTAINER=quickshell-quattro-smoke
     QS_RUNNER=/test/run-quattro-shell.sh
-    QS_IMAGE=quickshell:phase1-hypr-audio
+    QS_IMAGE=quickshell:phase1-hypr-lab
     QS_BIN=/tmp/quickshell-services-build/src/quickshell
     PW_SOCKET=/run/user/$HOST_UID/pipewire-0
     [ -S "$PW_SOCKET" ] || { echo "Host PipeWire socket missing: $PW_SOCKET" >&2; exit 1; }
@@ -117,6 +117,39 @@ if docker container inspect hyprland-phase2-drm >/dev/null 2>&1; then
   echo "Container hyprland-phase2-drm already exists. Inspect its logs or remove that exact stopped container first." >&2
   exit 1
 fi
+SYSTEM_PROXY_PID=
+stop_system_proxy() {
+  if [ -n "$SYSTEM_PROXY_PID" ]; then
+    kill "$SYSTEM_PROXY_PID" 2>/dev/null || true
+    wait "$SYSTEM_PROXY_PID" 2>/dev/null || true
+    SYSTEM_PROXY_PID=
+  fi
+}
+trap stop_system_proxy EXIT
+if [ "$QUATTRO" -eq 1 ]; then
+  command -v xdg-dbus-proxy >/dev/null
+  command -v setpriv >/dev/null
+  SYSTEM_PROXY_DIR=$(mktemp -d /tmp/jetson-system-bus.XXXXXX)
+  chown "$HOST_UID:$HOST_GID" "$SYSTEM_PROXY_DIR"
+  setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --init-groups \
+    sh "$SCRIPT_DIR/system-bus-readonly.sh" "$SYSTEM_PROXY_DIR/bus" \
+    >"$SYSTEM_PROXY_DIR/proxy.log" 2>&1 &
+  SYSTEM_PROXY_PID=$!
+  for attempt in 1 2 3 4 5; do
+    [ ! -S "$SYSTEM_PROXY_DIR/bus" ] || break
+    sleep 1
+  done
+  [ -S "$SYSTEM_PROXY_DIR/bus" ] || { echo "System bus proxy failed: $SYSTEM_PROXY_DIR/proxy.log" >&2; exit 1; }
+  QS_SYSTEM_ARGS="--mount type=bind,src=$SYSTEM_PROXY_DIR/bus,dst=/tmp/host-system-bus,readonly -e DBUS_SYSTEM_BUS_ADDRESS=unix:path=/tmp/host-system-bus"
+  # shellcheck disable=SC2086
+  docker run --rm --network none --security-opt apparmor=unconfined \
+    --user "$HOST_UID:$HOST_GID" $QS_SYSTEM_ARGS \
+    --mount "type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly" \
+    -e HOME=/tmp -e LANG=C.UTF-8 -e XDG_RUNTIME_DIR=/tmp/probe-runtime \
+    -e QT_QPA_PLATFORM=offscreen -e QS_BIN="$QS_BIN" \
+    --entrypoint sh "$QS_IMAGE" -c \
+    'mkdir -m 700 /tmp/probe-runtime; timeout 15 "$QS_BIN" --no-color -p /test/system-services-probe.qml'
+fi
 echo "Preflight passed: console=$ACTIVE_TTY, image=hyprland:phase2-runtime, uid=$HOST_UID"
 [ "$CHECK_ONLY" -eq 0 ] || exit 0
 [ -t 0 ] || { echo "An interactive local console is required." >&2; exit 1; }
@@ -139,6 +172,7 @@ cleanup() {
     echo "Quickshell logs retained: sudo docker logs $QS_CONTAINER"
   fi
   docker stop --time 5 hyprland-phase2-drm >/dev/null 2>&1 || true
+  stop_system_proxy
   if [ "$RESTORE_GDM" -eq 1 ]; then
     systemctl start gdm3 || true
   fi
@@ -203,7 +237,7 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   QS_ARGS="--mount type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly"
   if [ "$QUATTRO" -eq 1 ]; then
     QS_ARGS="$QS_ARGS --mount type=bind,src=/home/looco/omarchy,dst=/omarchy,readonly"
-    QS_ARGS="$QS_ARGS $QS_BUS_ARGS $QS_AUDIO_ARGS"
+    QS_ARGS="$QS_ARGS $QS_BUS_ARGS $QS_AUDIO_ARGS $QS_SYSTEM_ARGS"
     QS_ARGS="$QS_ARGS -e OMARCHY_PATH=/omarchy -e QML_IMPORT_PATH=/omarchy/shell"
   fi
   # shellcheck disable=SC2086

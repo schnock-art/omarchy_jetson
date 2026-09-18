@@ -1,0 +1,60 @@
+#!/usr/bin/python3
+"""Read host NetworkManager through the filtered bus, not container routes."""
+import sys
+from gi.repository import Gio, GLib
+
+NM = "org.freedesktop.NetworkManager"
+bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+
+def get(path, interface, prop):
+    return bus.call_sync(NM, path, "org.freedesktop.DBus.Properties", "Get",
+        GLib.Variant("(ss)", (interface, prop)), GLib.VariantType("(v)"),
+        Gio.DBusCallFlags.NONE, 3000, None).unpack()[0]
+
+def clean(value):
+    return str(value).replace("\t", " ").replace("\n", " ").replace("\r", " ")
+
+def main():
+    if sys.argv[1:] not in ([], ["--verbose"]):
+        raise ValueError("only --verbose is supported")
+    active = get("/org/freedesktop/NetworkManager", NM, "PrimaryConnection")
+    if active == "/":
+        if len(sys.argv) == 1:
+            print("disconnected\t\t\t")
+        return
+    ac = NM + ".Connection.Active"
+    devices = get(active, ac, "Devices")
+    device = devices[0]
+    iface = get(device, NM + ".Device", "Interface")
+    device_type = get(device, NM + ".Device", "DeviceType")
+    kind = {1: "ethernet", 2: "wifi"}.get(device_type, "unknown")
+    info = {"type": kind, "iface": iface}
+    strength = frequency = ""
+    label = iface
+    if device_type == 2:
+        label = get(active, ac, "Id")
+        ap = get(device, NM + ".Device.Wireless", "ActiveAccessPoint")
+        if ap != "/":
+            strength = get(ap, NM + ".AccessPoint", "Strength")
+            frequency = get(ap, NM + ".AccessPoint", "Frequency")
+        info.update(ssid=label, freq=frequency)
+    elif device_type == 1:
+        info["speed"] = get(device, NM + ".Device.Wired", "Speed")
+    if len(sys.argv) == 1:
+        print("\t".join(map(clean, [kind, label, strength, frequency])))
+        return
+    ip4 = get(active, ac, "Ip4Config")
+    if ip4 != "/":
+        addresses = get(ip4, NM + ".IP4Config", "AddressData")
+        if addresses:
+            info["ip"] = addresses[0]["address"]
+            info["prefix"] = addresses[0]["prefix"]
+        info["gateway"] = get(ip4, NM + ".IP4Config", "Gateway")
+    for key, value in info.items():
+        print(key + "\t" + clean(value))
+
+try:
+    main()
+except (GLib.Error, ValueError, KeyError, IndexError) as error:
+    print("Network status unavailable: " + str(error), file=sys.stderr)
+    sys.exit(1)
