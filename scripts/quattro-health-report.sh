@@ -104,6 +104,14 @@ else
   fail 'Jetson telemetry integration is incomplete'
 fi
 
+if [ -f "$ROOT_DIR/tests/runtime-smoke/jetson-workloads/Panel.qml" ] && \
+   [ -x "$ROOT_DIR/scripts/quattro-workloads.sh" ] && \
+   [ -x "$ROOT_DIR/scripts/quattro-action-gateway.sh" ]; then
+  pass 'Bounded workload action integration is present'
+else
+  fail 'Bounded workload action integration is incomplete'
+fi
+
 if [ "$DOCKER_OK" -eq 1 ]; then
   if docker_cmd image inspect hyprland:phase2-runtime >/dev/null 2>&1 && \
      docker_cmd image inspect quickshell:phase1-hypr-lab >/dev/null 2>&1; then

@@ -14,6 +14,7 @@ $SCRIPT_DIR/collect-jetson-agent-status.sh \
 $SCRIPT_DIR/quattro-health-report.sh \
 $SCRIPT_DIR/quattro-reboot-check.sh \
 $SCRIPT_DIR/quattro-workloads.sh \
+$SCRIPT_DIR/quattro-action-gateway.sh \
 $ROOT_DIR/tests/runtime-smoke/run-quattro-shell.sh \
 $ROOT_DIR/tests/runtime-smoke/run-layer-panel.sh \
 $ROOT_DIR/tests/runtime-smoke/helpers/busctl \

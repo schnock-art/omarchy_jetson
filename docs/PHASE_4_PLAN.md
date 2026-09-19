@@ -116,9 +116,22 @@ the host, or run in the background indefinitely.
 
 ### Decision gate
 
-This batch requires a separate user decision about which agent(s) may be
-launched and what authority each receives. It is intentionally not implied by
-displaying usage data.
+The first approved action is deliberately narrower than provider launch: a
+twice-confirmed request to submit the fixed, local harmless sample job through
+the existing registry. It has no command field, arguments, credentials,
+network access, stop/kill action, or persistence beyond the active Quattro
+session. Provider or coding-agent launch still requires a separate user
+decision about the agent and authority each receives; it is not implied by
+displaying usage data or by this sample action.
+
+### Acceptance
+
+One physical Quattro session: open **LAB WORKLOADS**, select **Start harmless
+sample…**, then select the confirmation. The panel should show the new job as
+running and then completed after roughly 15 seconds. Exit normally with
+Super+Shift+E; the usual SSH health report should pass. If the session ends
+before completion, the registry must show the sample as failed rather than
+leave it running.
 
 ## Batch 4E — Additional providers
 

@@ -125,6 +125,7 @@ fi
 SYSTEM_PROXY_PID=
 TELEMETRY_PID=
 AGENT_STATUS_PID=
+ACTION_GATEWAY_PID=
 stop_system_proxy() {
   if [ -n "$SYSTEM_PROXY_PID" ]; then
     kill "$SYSTEM_PROXY_PID" 2>/dev/null || true
@@ -146,7 +147,15 @@ stop_agent_status() {
     AGENT_STATUS_PID=
   fi
 }
+stop_action_gateway() {
+  if [ -n "$ACTION_GATEWAY_PID" ]; then
+    kill "$ACTION_GATEWAY_PID" 2>/dev/null || true
+    wait "$ACTION_GATEWAY_PID" 2>/dev/null || true
+    ACTION_GATEWAY_PID=
+  fi
+}
 cleanup_preflight() {
+  stop_action_gateway
   stop_telemetry
   stop_agent_status
   stop_system_proxy
@@ -212,6 +221,21 @@ if [ "$QUATTRO" -eq 1 ]; then
     exit 1
   }
   QS_AGENT_STATUS_ARGS="--mount type=bind,src=$AGENT_STATUS_DIR,dst=/tmp/jetson-agent-status,readonly"
+  ACTION_GATEWAY_DIR=$(mktemp -d /tmp/jetson-action-gateway.XXXXXX)
+  chown "$HOST_UID:$HOST_GID" "$ACTION_GATEWAY_DIR"
+  chmod 0700 "$ACTION_GATEWAY_DIR"
+  setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --init-groups \
+    "$SCRIPT_DIR/quattro-action-gateway.sh" "$ACTION_GATEWAY_DIR" \
+    >"$ACTION_GATEWAY_DIR/launcher.log" 2>&1 &
+  ACTION_GATEWAY_PID=$!
+  sleep 1
+  kill -0 "$ACTION_GATEWAY_PID" 2>/dev/null || {
+    echo "Action gateway failed: $ACTION_GATEWAY_DIR/launcher.log" >&2
+    exit 1
+  }
+  # This is intentionally the sole writable host mount in Quattro. The
+  # gateway accepts only one fixed, harmless request and exits with the run.
+  QS_ACTION_ARGS="--mount type=bind,src=$ACTION_GATEWAY_DIR,dst=/tmp/jetson-actions"
 fi
 echo "Preflight passed: console=$ACTIVE_TTY, image=hyprland:phase2-runtime, uid=$HOST_UID"
 [ "$CHECK_ONLY" -eq 0 ] || exit 0
@@ -235,6 +259,7 @@ cleanup() {
     echo "Quickshell logs retained: sudo docker logs $QS_CONTAINER"
   fi
   docker stop --time 5 hyprland-phase2-drm >/dev/null 2>&1 || true
+  stop_action_gateway
   stop_telemetry
   stop_agent_status
   stop_system_proxy
@@ -302,7 +327,7 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   QS_ARGS="--mount type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly"
   if [ "$QUATTRO" -eq 1 ]; then
     QS_ARGS="$QS_ARGS --mount type=bind,src=/home/looco/omarchy,dst=/omarchy,readonly"
-    QS_ARGS="$QS_ARGS $QS_BUS_ARGS $QS_AUDIO_ARGS $QS_SYSTEM_ARGS $QS_TELEMETRY_ARGS $QS_AGENT_STATUS_ARGS $QS_WORKLOAD_ARGS"
+    QS_ARGS="$QS_ARGS $QS_BUS_ARGS $QS_AUDIO_ARGS $QS_SYSTEM_ARGS $QS_TELEMETRY_ARGS $QS_AGENT_STATUS_ARGS $QS_WORKLOAD_ARGS $QS_ACTION_ARGS"
     QS_ARGS="$QS_ARGS -e OMARCHY_PATH=/omarchy -e QML_IMPORT_PATH=/omarchy/shell"
   fi
   # shellcheck disable=SC2086
