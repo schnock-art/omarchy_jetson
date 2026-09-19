@@ -19,6 +19,17 @@ case "${1:-}" in
   *) usage ;;
 esac
 
+# Validate the physical-console requirement before archiving anything. This is
+# especially important for --check: an SSH invocation should fail cleanly and
+# leave the previous stopped containers untouched.
+START_TTY=${SUDO_TTY:-$(tty 2>/dev/null || true)}
+case "${START_TTY#/dev/tty}" in
+  ''|0|*[!0-9]*)
+    echo "A physical VT is required before the launcher can archive or start a run (detected: ${START_TTY:-none})." >&2
+    echo "Run it from the Jetson's local text console, or use the SSH-safe health report." >&2
+    exit 1 ;;
+esac
+
 archive_stopped_container() {
   name=$1
   sudo docker container inspect "$name" >/dev/null 2>&1 || return 0
