@@ -16,9 +16,19 @@ while :; do
   [ -d "$omarchy_bin" ] && collectors=$(find "$omarchy_bin" -maxdepth 1 -type f -name 'omarchy-agent-usage-*' ! -name '*-update' | wc -l)
   updater=0
   [ -x "$omarchy_bin/omarchy-agent-usage-update" ] && updater=1
+  codex='{}'
+  codex_collector="$omarchy_bin/omarchy-agent-usage-codex"
+  if [ -x "$codex_collector" ]; then
+    codex=$(
+      timeout 45 "$codex_collector" --force 2>/dev/null || printf '{}'
+    )
+    jq -e . >/dev/null 2>&1 <<EOF || codex='{}'
+$codex
+EOF
+  fi
   tmp="$OUT_FILE.tmp"
-  printf '{"bridge":"ready","usageRecords":%s,"collectors":%s,"updaterPresent":%s,"providerLaunch":"deferred"}\n' \
-    "$records" "$collectors" "$updater" >"$tmp"
+  jq -cn --argjson codex "$codex" \
+    '{bridge:"ready",usageRecords:(if ($codex.id // "") != "" then 1 else 0 end),collectors:'"$collectors"',updaterPresent:'"$updater"',providerLaunch:"deferred",codex:$codex}' >"$tmp"
   mv "$tmp" "$OUT_FILE"
-  sleep 5
+  sleep 60
 done

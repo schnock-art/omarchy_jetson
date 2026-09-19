@@ -12,6 +12,7 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
   property var status: ({})
+  readonly property var codex: root.status.codex || ({})
 
   function refresh() { if (!statusProc.running) statusProc.running = true }
   function updateStatus(raw) {
@@ -66,6 +67,9 @@ Panel {
       InfoPair { label: "Collectors"; value: root.status.collectors === undefined ? "—" : String(root.status.collectors) }
       InfoPair { label: "Updater"; value: root.status.updaterPresent === 1 ? "available" : "not exposed" }
       InfoPair { label: "Provider launch"; value: root.status.providerLaunch || "deferred" }
+      InfoPair { label: "Codex today"; value: root.codex.todayPrompts === undefined ? "—" : String(root.codex.todayPrompts) + " prompts" }
+      InfoPair { label: "Codex total"; value: root.codex.totalPrompts === undefined ? "—" : String(root.codex.totalPrompts) + " prompts" }
+      InfoPair { label: "Limit windows"; value: root.codex.limits === undefined ? "—" : String(root.codex.limits.length || 0) }
       Text { width: parent.width; text: "Read-only bridge. Provider credentials and launching remain deferred."; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.65; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
     }
   }

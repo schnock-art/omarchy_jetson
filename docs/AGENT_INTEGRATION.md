@@ -21,7 +21,8 @@ separate reviewed batches.
 
 The first bridge is now implemented in the Quattro harness. A host-side
 read-only collector reports the number of available usage records and upstream
-collectors, while the visible bar panel reports bridge readiness and explicitly
-labels provider launching as deferred. It does not mount credentials, invoke
-collectors, or fabricate usage data. The next agent sub-batch can safely add a
-real provider record once a provider-specific data source is selected.
+collectors, while the visible bar panel reports bridge readiness and Codex
+usage. It runs Omarchy's existing Codex collector on the host and passes only
+the resulting JSON record into the isolated shell; credentials and provider
+network access never enter Docker. Provider launching remains explicitly
+deferred, and a failed refresh preserves the last valid record.
