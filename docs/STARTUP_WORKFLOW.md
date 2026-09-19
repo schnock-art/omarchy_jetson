@@ -44,3 +44,8 @@ Add `--require-run` when a completed or active run is required and a missing
 run should be treated as a failure. The report is read-only: it does not start
 or stop containers, change GDM, or modify host settings. The broader low-touch
 roadmap is recorded in [PHASE_3_PLAN.md](PHASE_3_PLAN.md).
+
+Each report is also saved automatically under
+`artifacts/quattro-health/` with a timestamped filename. Historical run logs
+under `artifacts/quattro-runs/` are intentionally retained as evidence; they
+are not deleted by the report script.

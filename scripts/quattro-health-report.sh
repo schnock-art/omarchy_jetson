@@ -1,10 +1,15 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Read-only Quattro lab health report. Safe to run over SSH.
 set -u
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 ARCHIVE_DIR="$ROOT_DIR/artifacts/quattro-runs"
+REPORT_DIR="$ROOT_DIR/artifacts/quattro-health"
+mkdir -p "$REPORT_DIR"
+REPORT_FILE="$REPORT_DIR/$(date +%Y%m%d-%H%M%S)-health.txt"
+# Keep the live terminal output and save an exact copy for later inspection.
+exec > >(tee "$REPORT_FILE")
 REQUIRE_RUN=0
 
 usage() {
@@ -61,6 +66,7 @@ latest_archive() {
 printf 'Quattro Jetson lab health report\n'
 printf 'Repository: %s\n' "$ROOT_DIR"
 printf 'Revision:   %s\n' "$(git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null || echo unavailable)"
+printf 'Saved report: %s\n' "$REPORT_FILE"
 printf '\nInfrastructure\n'
 
 if docker_cmd info >/dev/null 2>&1; then
