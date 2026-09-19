@@ -9,6 +9,12 @@ It is a read-only display of the Jetson's current `tegrastats` sample:
 - `VIN_SYS_5V0` input power; and
 - the active `nvpmodel` label, such as `NV Power Mode: MODE_30W`.
 
+While the panel is open it also retains the last 60 one-second samples in
+memory. The chart draws CPU and GPU utilization, and the panel reports CPU,
+GPU, and junction-temperature peaks for that short window. This history exists
+only in the running Quickshell process and disappears when the lab session
+ends; it does not create a host telemetry database.
+
 ## Runtime boundary
 
 `scripts/collect-jetson-telemetry.sh` runs on the host as `looco`, using the

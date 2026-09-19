@@ -14,6 +14,8 @@ Panel {
   implicitHeight: button.implicitHeight
   manageIpc: false
   property var telemetry: ({})
+  property var history: []
+  readonly property int historyLimit: 60
 
   function refresh() {
     if (!telemetryProc.running) telemetryProc.running = true
@@ -22,7 +24,13 @@ Panel {
   function updateTelemetry(raw) {
     try {
       var parsed = JSON.parse(raw)
-      if (parsed && parsed.ramTotalMb !== undefined) telemetry = parsed
+      if (parsed && parsed.ramTotalMb !== undefined) {
+        telemetry = parsed
+        var next = history.slice()
+        next.push({ cpu: Number(parsed.cpuPercent || 0), gpu: Number(parsed.gpuPercent || 0), temperature: Number(parsed.junctionC || 0), watts: Number(parsed.vinMilliwatts || 0) / 1000 })
+        if (next.length > historyLimit) next.shift()
+        history = next
+      }
     } catch (error) {
       console.warn("Jetson telemetry parse failed:", error)
     }
@@ -44,6 +52,14 @@ Panel {
   function watts() {
     return telemetry.vinMilliwatts === undefined ? "—" : (telemetry.vinMilliwatts / 1000).toFixed(1) + " W"
   }
+
+  function peak(field) {
+    var result = 0
+    for (var i = 0; i < history.length; i++) result = Math.max(result, Number(history[i][field] || 0))
+    return result
+  }
+
+  onHistoryChanged: historyCanvas.requestPaint()
 
   IpcHandler {
     target: "omarchy.jetson-telemetry"
@@ -126,6 +142,52 @@ Panel {
           InfoPair { label: "Junction"; value: root.temperature(root.telemetry.junctionC) }
           InfoPair { label: "GPU temp"; value: root.temperature(root.telemetry.gpuC) }
           InfoPair { label: "Input power"; value: root.watts() }
+        }
+      }
+
+      PanelSeparator { foreground: root.bar.foreground }
+
+      Column {
+        width: parent.width
+        spacing: Style.space(6)
+        Text {
+          text: "LAST " + root.history.length + " SECONDS"
+          color: root.bar.foreground
+          opacity: 0.65
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          font.bold: true
+        }
+        Canvas {
+          id: historyCanvas
+          width: parent.width
+          height: Style.space(46)
+          onPaint: {
+            var context = getContext("2d")
+            context.clearRect(0, 0, width, height)
+            if (root.history.length < 2) return
+            function line(field, color) {
+              context.beginPath()
+              for (var i = 0; i < root.history.length; i++) {
+                var x = i * width / (root.historyLimit - 1)
+                var y = height - Math.min(100, Number(root.history[i][field] || 0)) * height / 100
+                if (i === 0) context.moveTo(x, y)
+                else context.lineTo(x, y)
+              }
+              context.strokeStyle = color
+              context.lineWidth = 2
+              context.stroke()
+            }
+            line("cpu", root.bar.foreground)
+            line("gpu", "#67c587")
+          }
+        }
+        Row {
+          width: parent.width
+          spacing: Style.space(14)
+          Text { text: "CPU peak " + Math.round(root.peak("cpu")) + "%"; color: root.bar.foreground; opacity: 0.7; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
+          Text { text: "GPU peak " + Math.round(root.peak("gpu")) + "%"; color: root.bar.foreground; opacity: 0.7; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
+          Text { text: "Junction peak " + root.peak("temperature").toFixed(1) + "°C"; color: root.bar.foreground; opacity: 0.7; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
         }
       }
     }
