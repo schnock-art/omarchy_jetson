@@ -108,6 +108,24 @@ added to achieve it.
 
 One reboot and one physical launch. Everything else is automated.
 
+## Deferred required workstream — Agent integration
+
+Agent integration is intentionally deferred from the current physical baseline
+while the compositor and hardware shell are stabilized, but it is a required
+lab capability, not optional polish. It is tracked here so the missing agents
+icon is an explicit known gap rather than an accidental omission.
+
+The next agent batch should inventory the upstream agent UI and commands,
+separate portable provider/IPC behavior from Arch-specific package helpers,
+and add the smallest useful ARM64-compatible bridge. It must preserve the
+lab's current isolation boundaries and must not enable autonomous background
+agents without a separate decision.
+
+Its acceptance gate will be a visible agents widget plus a safe read-only
+status/usage path, followed by one controlled launch test. Provider launching,
+approvals, skills, monitoring, and local CUDA/TensorRT inference remain
+separate sub-batches rather than being bundled into the first icon port.
+
 ## Batch D — Optional polish after stability
 
 Only begin these once B and C are green. Each is an isolated batch with the
