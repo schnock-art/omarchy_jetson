@@ -12,6 +12,7 @@ $SCRIPT_DIR/run-hyprland-drm.sh \
 $SCRIPT_DIR/collect-jetson-telemetry.sh \
 $SCRIPT_DIR/collect-jetson-agent-status.sh \
 $SCRIPT_DIR/quattro-health-report.sh \
+$SCRIPT_DIR/quattro-reboot-check.sh \
 $ROOT_DIR/tests/runtime-smoke/run-quattro-shell.sh \
 $ROOT_DIR/tests/runtime-smoke/run-layer-panel.sh \
 $ROOT_DIR/tests/runtime-smoke/helpers/busctl \

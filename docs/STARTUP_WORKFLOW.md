@@ -50,3 +50,22 @@ Each report is also saved automatically under
 `artifacts/quattro-health/` with a timestamped filename. Historical run logs
 under `artifacts/quattro-runs/` are intentionally retained as evidence; they
 are not deleted by the report script.
+
+## Reboot-resilience check
+
+Before a planned normal reboot, capture a read-only baseline over SSH:
+
+```sh
+cd /home/looco/repos/omarchy_jetson
+./scripts/quattro-reboot-check.sh --capture
+```
+
+After SSH returns and the normal GDM desktop is available, verify the exact
+baseline path printed by the capture command:
+
+```sh
+./scripts/quattro-reboot-check.sh --verify artifacts/reboot-baselines/<timestamp>.json
+```
+
+The check verifies GDM, Docker, the desktop user's D-Bus and PipeWire sockets,
+the kernel, and the two retained lab images. It changes no system state.
