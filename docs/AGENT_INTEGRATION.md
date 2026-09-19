@@ -18,3 +18,10 @@ The first implementation target is the smallest useful ARM64-compatible
 status/usage bridge and a visible bar widget. Provider launch, approvals,
 skills, monitoring, and local CUDA/TensorRT inference will be handled as
 separate reviewed batches.
+
+The first bridge is now implemented in the Quattro harness. A host-side
+read-only collector reports the number of available usage records and upstream
+collectors, while the visible bar panel reports bridge readiness and explicitly
+labels provider launching as deferred. It does not mount credentials, invoke
+collectors, or fabricate usage data. The next agent sub-batch can safely add a
+real provider record once a provider-specific data source is selected.

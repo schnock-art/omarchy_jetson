@@ -120,6 +120,7 @@ if docker container inspect hyprland-phase2-drm >/dev/null 2>&1; then
 fi
 SYSTEM_PROXY_PID=
 TELEMETRY_PID=
+AGENT_STATUS_PID=
 stop_system_proxy() {
   if [ -n "$SYSTEM_PROXY_PID" ]; then
     kill "$SYSTEM_PROXY_PID" 2>/dev/null || true
@@ -134,7 +135,18 @@ stop_telemetry() {
     TELEMETRY_PID=
   fi
 }
+stop_agent_status() {
+  if [ -n "$AGENT_STATUS_PID" ]; then
+    kill "$AGENT_STATUS_PID" 2>/dev/null || true
+    wait "$AGENT_STATUS_PID" 2>/dev/null || true
+    AGENT_STATUS_PID=
+  fi
+}
 cleanup_preflight() {
+  stop_telemetry
+  stop_agent_status
+  stop_system_proxy
+}
   stop_telemetry
   stop_system_proxy
 }
@@ -181,6 +193,21 @@ if [ "$QUATTRO" -eq 1 ]; then
     exit 1
   }
   QS_TELEMETRY_ARGS="--mount type=bind,src=$TELEMETRY_DIR,dst=/tmp/jetson-telemetry,readonly"
+  AGENT_STATUS_DIR=$(mktemp -d /tmp/jetson-agent-status.XXXXXX)
+  chown "$HOST_UID:$HOST_GID" "$AGENT_STATUS_DIR"
+  setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --init-groups \
+    "$SCRIPT_DIR/collect-jetson-agent-status.sh" "$AGENT_STATUS_DIR/status.json" \
+    >"$AGENT_STATUS_DIR/collector.log" 2>&1 &
+  AGENT_STATUS_PID=$!
+  for attempt in 1 2 3 4 5; do
+    [ -s "$AGENT_STATUS_DIR/status.json" ] && break
+    sleep 1
+  done
+  [ -s "$AGENT_STATUS_DIR/status.json" ] || {
+    echo "Agent status bridge failed: $AGENT_STATUS_DIR/collector.log" >&2
+    exit 1
+  }
+  QS_AGENT_STATUS_ARGS="--mount type=bind,src=$AGENT_STATUS_DIR,dst=/tmp/jetson-agent-status,readonly"
 fi
 echo "Preflight passed: console=$ACTIVE_TTY, image=hyprland:phase2-runtime, uid=$HOST_UID"
 [ "$CHECK_ONLY" -eq 0 ] || exit 0
@@ -205,6 +232,7 @@ cleanup() {
   fi
   docker stop --time 5 hyprland-phase2-drm >/dev/null 2>&1 || true
   stop_telemetry
+  stop_agent_status
   stop_system_proxy
   if [ "$RESTORE_GDM" -eq 1 ]; then
     systemctl start gdm3 || true
@@ -270,7 +298,7 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   QS_ARGS="--mount type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly"
   if [ "$QUATTRO" -eq 1 ]; then
     QS_ARGS="$QS_ARGS --mount type=bind,src=/home/looco/omarchy,dst=/omarchy,readonly"
-    QS_ARGS="$QS_ARGS $QS_BUS_ARGS $QS_AUDIO_ARGS $QS_SYSTEM_ARGS $QS_TELEMETRY_ARGS"
+    QS_ARGS="$QS_ARGS $QS_BUS_ARGS $QS_AUDIO_ARGS $QS_SYSTEM_ARGS $QS_TELEMETRY_ARGS $QS_AGENT_STATUS_ARGS"
     QS_ARGS="$QS_ARGS -e OMARCHY_PATH=/omarchy -e QML_IMPORT_PATH=/omarchy/shell"
   fi
   # shellcheck disable=SC2086

@@ -10,6 +10,7 @@ OMARCHY_RUNTIME=/tmp/omarchy-runtime
 install -d -m 0755 "$OMARCHY_RUNTIME"
 cp -a /omarchy/. "$OMARCHY_RUNTIME/"
 cp /test/jetson-power.qml "$OMARCHY_RUNTIME/shell/plugins/panels/power/Panel.qml"
+cp /test/jetson-agents/Panel.qml "$OMARCHY_RUNTIME/shell/plugins/agents/Panel.qml"
 install -d -m 0755 "$OMARCHY_RUNTIME/shell/plugins/panels/jetson-telemetry"
 cp -a /test/jetson-telemetry/. "$OMARCHY_RUNTIME/shell/plugins/panels/jetson-telemetry/"
 sed -i \
