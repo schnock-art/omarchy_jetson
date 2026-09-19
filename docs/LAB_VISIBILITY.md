@@ -115,3 +115,21 @@ power panel, clean Hyprland exit, and a mounted live Codex usage record (114
 prompts on the day of the test). The exact run evidence is retained under
 `artifacts/quattro-runs/20260919-204854/`; the corresponding health report is
 under `artifacts/quattro-health/20260919-205151-health.txt`.
+
+## Phase 4 visibility result — 2026-09-19
+
+The first three broader lab-visibility capabilities were confirmed together on
+the Jetson display: the Codex activity panel, the short in-memory CPU/GPU
+telemetry history graph, and the read-only workload registry. The user saw the
+telemetry graph render and the completed harmless sample job in the workload
+panel.
+
+The retained health report recorded 15 passes, no warnings, and no failures.
+It verified the mounted Codex record (145 prompts on the test day) and the
+completed `Harmless sample` workload. The run evidence is retained under
+`artifacts/quattro-runs/20260919-211800/`; the health report is
+`artifacts/quattro-health/20260919-212104-health.txt`.
+
+These panels remain observational: the workload registry has no arbitrary
+command, stop, or control surface, and telemetry history is session-local.
+Deliberate agent actions remain a separately scoped Phase 4 decision.
