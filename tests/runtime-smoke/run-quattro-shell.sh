@@ -13,6 +13,8 @@ cp /test/jetson-power.qml "$OMARCHY_RUNTIME/shell/plugins/panels/power/Panel.qml
 cp /test/jetson-agents/Panel.qml "$OMARCHY_RUNTIME/shell/plugins/agents/Panel.qml"
 install -d -m 0755 "$OMARCHY_RUNTIME/shell/plugins/panels/jetson-telemetry"
 cp -a /test/jetson-telemetry/. "$OMARCHY_RUNTIME/shell/plugins/panels/jetson-telemetry/"
+install -d -m 0755 "$OMARCHY_RUNTIME/shell/plugins/panels/jetson-workloads"
+cp -a /test/jetson-workloads/. "$OMARCHY_RUNTIME/shell/plugins/panels/jetson-workloads/"
 sed -i \
   -e 's/var transient = false/var transientHint = false/' \
   -e 's/transient = !!(notification\.hints/transientHint = !!(notification.hints/' \
@@ -32,6 +34,10 @@ if entry not in right:
     # Keep hardware status together: telemetry sits immediately before PWR.
     power_index = next((i for i, item in enumerate(right) if item.get("id") == "omarchy.power"), len(right))
     right.insert(power_index, entry)
+workload_entry = {"id": "omarchy.jetson-workloads"}
+if workload_entry not in right:
+    agents_index = next((i for i, item in enumerate(right) if item.get("id") == "omarchy.agents"), len(right))
+    right.insert(agents_index, workload_entry)
 with open(path, "w", encoding="utf-8") as target:
     json.dump(config, target, indent=2)
     target.write("\n")

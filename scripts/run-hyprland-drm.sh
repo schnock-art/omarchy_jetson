@@ -71,6 +71,9 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
     QS_RUNNER=/test/run-quattro-shell.sh
     QS_IMAGE=quickshell:phase1-hypr-lab
     QS_BIN=/tmp/quickshell-services-build/src/quickshell
+    "$SCRIPT_DIR/quattro-workloads.sh" init
+    WORKLOAD_DIR="$SCRIPT_DIR/../artifacts/workloads"
+    QS_WORKLOAD_ARGS="--mount type=bind,src=$WORKLOAD_DIR,dst=/tmp/jetson-workloads,readonly"
     JETSON_POWER_MODE=$(timeout 5 nvpmodel -q 2>/dev/null || echo "NVIDIA power mode unavailable")
     PW_SOCKET=/run/user/$HOST_UID/pipewire-0
     [ -S "$PW_SOCKET" ] || { echo "Host PipeWire socket missing: $PW_SOCKET" >&2; exit 1; }
@@ -299,7 +302,7 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   QS_ARGS="--mount type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly"
   if [ "$QUATTRO" -eq 1 ]; then
     QS_ARGS="$QS_ARGS --mount type=bind,src=/home/looco/omarchy,dst=/omarchy,readonly"
-    QS_ARGS="$QS_ARGS $QS_BUS_ARGS $QS_AUDIO_ARGS $QS_SYSTEM_ARGS $QS_TELEMETRY_ARGS $QS_AGENT_STATUS_ARGS"
+    QS_ARGS="$QS_ARGS $QS_BUS_ARGS $QS_AUDIO_ARGS $QS_SYSTEM_ARGS $QS_TELEMETRY_ARGS $QS_AGENT_STATUS_ARGS $QS_WORKLOAD_ARGS"
     QS_ARGS="$QS_ARGS -e OMARCHY_PATH=/omarchy -e QML_IMPORT_PATH=/omarchy/shell"
   fi
   # shellcheck disable=SC2086

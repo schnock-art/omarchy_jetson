@@ -13,6 +13,7 @@ $SCRIPT_DIR/collect-jetson-telemetry.sh \
 $SCRIPT_DIR/collect-jetson-agent-status.sh \
 $SCRIPT_DIR/quattro-health-report.sh \
 $SCRIPT_DIR/quattro-reboot-check.sh \
+$SCRIPT_DIR/quattro-workloads.sh \
 $ROOT_DIR/tests/runtime-smoke/run-quattro-shell.sh \
 $ROOT_DIR/tests/runtime-smoke/run-layer-panel.sh \
 $ROOT_DIR/tests/runtime-smoke/helpers/busctl \
@@ -33,7 +34,9 @@ done
 
 for file in \
   "$ROOT_DIR/tests/runtime-smoke/jetson-telemetry/manifest.json" \
-  "$ROOT_DIR/tests/runtime-smoke/jetson-agents/Panel.qml"; do
+  "$ROOT_DIR/tests/runtime-smoke/jetson-agents/Panel.qml" \
+  "$ROOT_DIR/tests/runtime-smoke/jetson-workloads/manifest.json" \
+  "$ROOT_DIR/tests/runtime-smoke/jetson-workloads/Panel.qml"; do
   [ -f "$file" ] || { echo "Syntax check: missing $file" >&2; exit 1; }
 done
 
@@ -42,5 +45,6 @@ command -v jq >/dev/null 2>&1 || {
   exit 1
 }
 jq empty "$ROOT_DIR/tests/runtime-smoke/jetson-telemetry/manifest.json"
+jq empty "$ROOT_DIR/tests/runtime-smoke/jetson-workloads/manifest.json"
 
 echo "Syntax validation passed: shell launchers, helpers, and runtime manifest"

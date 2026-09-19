@@ -92,6 +92,12 @@ it finish naturally. The panel then shows completed state and log location.
 
 None for the sample job.
 
+### Implemented baseline
+
+The host registry, a fixed harmless sample job, and the read-only Quattro
+panel are implemented. Visual confirmation is bundled with the telemetry
+history check to avoid a separate physical session.
+
 ## Batch 4D — Deliberate agent actions
 
 ### Outcome

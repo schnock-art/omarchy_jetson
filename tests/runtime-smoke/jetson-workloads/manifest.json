@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.jetson-workloads",
+  "name": "Jetson workloads",
+  "version": "1.0.0",
+  "author": "Omarchy Jetson lab",
+  "description": "Read-only view of explicitly registered Jetson lab jobs",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "Panel.qml" },
+  "barWidget": { "displayName": "Jetson workloads", "description": "Registered lab jobs", "category": "System", "allowMultiple": false }
+}
