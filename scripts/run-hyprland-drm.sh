@@ -193,7 +193,10 @@ if [ "$QUATTRO" -eq 1 ]; then
   QS_TELEMETRY_ARGS="--mount type=bind,src=$TELEMETRY_DIR,dst=/tmp/jetson-telemetry,readonly"
   AGENT_STATUS_DIR=$(mktemp -d /tmp/jetson-agent-status.XXXXXX)
   chown "$HOST_UID:$HOST_GID" "$AGENT_STATUS_DIR"
+  # sudo leaves HOME pointing at root. Codex local session discovery belongs to
+  # the desktop user, so make that identity explicit before dropping privileges.
   setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --init-groups \
+    env HOME="/home/$HOST_USER" XDG_STATE_HOME="/home/$HOST_USER/.local/state" \
     "$SCRIPT_DIR/collect-jetson-agent-status.sh" "$AGENT_STATUS_DIR/status.json" \
     >"$AGENT_STATUS_DIR/collector.log" 2>&1 &
   AGENT_STATUS_PID=$!
