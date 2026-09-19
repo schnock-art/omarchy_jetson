@@ -26,3 +26,12 @@ usage. It runs Omarchy's existing Codex collector on the host and passes only
 the resulting JSON record into the isolated shell; credentials and provider
 network access never enter Docker. Provider launching remains explicitly
 deferred, and a failed refresh preserves the last valid record.
+
+## Codex observability
+
+The first provider batch exposes Codex local usage in the panel: today and
+total prompts, sessions, reported tier, refresh age, and a concise primary
+limit summary when a live limit window is available. A record with zero usage
+is valid and is reported as such; an absent or malformed record is a health
+failure. If the local Codex CLI is unavailable, locally derived history remains
+visible while the panel states that live provider status is unavailable.

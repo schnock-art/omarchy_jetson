@@ -156,8 +156,14 @@ printf '\nAgent bridge\n'
 if [ -f "$AGENT_STATUS_FILE" ] && jq -e . "$AGENT_STATUS_FILE" >/dev/null 2>&1; then
   codex_id=$(jq -r '.codex.id // empty' "$AGENT_STATUS_FILE")
   codex_today=$(jq -r '.codex.todayPrompts // empty' "$AGENT_STATUS_FILE")
+  codex_updated=$(jq -r '.codex.updatedAt // empty' "$AGENT_STATUS_FILE")
   if [ "$codex_id" = codex ] && [ -n "$codex_today" ]; then
-    pass "Codex record mounted ($codex_today prompts today)"
+    if [ "$codex_today" = 0 ]; then
+      pass 'Codex record mounted (valid zero-usage record)'
+    else
+      pass "Codex record mounted ($codex_today prompts today)"
+    fi
+    [ -z "$codex_updated" ] || note "Codex record updated: $codex_updated"
   else
     fail 'Agent bridge mounted but has no Codex usage record'
   fi

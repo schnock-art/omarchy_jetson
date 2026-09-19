@@ -15,6 +15,21 @@ Panel {
   readonly property var codex: root.status.codex || ({})
 
   function refresh() { if (!statusProc.running) statusProc.running = true }
+  function age(timestamp) {
+    if (!timestamp) return "unknown"
+    var elapsed = Date.now() - new Date(timestamp).getTime()
+    if (!isFinite(elapsed) || elapsed < 0) return "unknown"
+    var seconds = Math.floor(elapsed / 1000)
+    if (seconds < 90) return seconds + "s ago"
+    var minutes = Math.floor(seconds / 60)
+    if (minutes < 90) return minutes + "m ago"
+    return Math.floor(minutes / 60) + "h ago"
+  }
+  function limitSummary() {
+    if (!root.codex.limits || root.codex.limits.length === 0) return "No live limit window"
+    var limit = root.codex.limits[0]
+    return String(limit.label || "Limit") + ": " + Math.round(Number(limit.percent || 0) * 100) + "% used"
+  }
   function updateStatus(raw) {
     try {
       status = JSON.parse(raw)
@@ -72,9 +87,16 @@ Panel {
       InfoPair { label: "Collectors"; value: root.status.collectors === undefined ? "—" : String(root.status.collectors) }
       InfoPair { label: "Updater"; value: root.status.updaterPresent === 1 ? "available" : "not exposed" }
       InfoPair { label: "Provider launch"; value: root.status.providerLaunch || "deferred" }
+      PanelSeparator { foreground: root.bar.foreground }
+      Text { text: "CODEX"; color: root.bar.foreground; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
       InfoPair { label: "Codex today"; value: root.codex.todayPrompts === undefined ? "—" : String(root.codex.todayPrompts) + " prompts" }
       InfoPair { label: "Codex total"; value: root.codex.totalPrompts === undefined ? "—" : String(root.codex.totalPrompts) + " prompts" }
+      InfoPair { label: "Sessions"; value: root.codex.totalSessions === undefined ? "—" : String(root.codex.totalSessions) }
+      InfoPair { label: "Plan"; value: root.codex.tierLabel || "unavailable" }
       InfoPair { label: "Limit windows"; value: root.codex.limits === undefined ? "—" : String(root.codex.limits.length || 0) }
+      InfoPair { label: "Primary limit"; value: root.limitSummary() }
+      InfoPair { label: "Updated"; value: root.age(root.codex.updatedAt) }
+      Text { visible: !!root.codex.usageStatusText; width: parent.width; text: root.codex.usageStatusText; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.75; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
       Text { width: parent.width; text: "Read-only bridge. Provider credentials and launching remain deferred."; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.65; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
     }
   }
