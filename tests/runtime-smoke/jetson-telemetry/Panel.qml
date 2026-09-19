@@ -8,6 +8,11 @@ Panel {
   id: root
   moduleName: "omarchy.jetson-telemetry"
   ipcTarget: "omarchy.jetson-telemetry"
+  // Panel is an Item, so a child that fills it does not contribute an implicit
+  // size by itself. The bar otherwise assigns this widget a zero-width slot.
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
+  manageIpc: false
   property var telemetry: ({})
 
   function refresh() {
