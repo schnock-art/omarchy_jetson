@@ -32,3 +32,15 @@ is available from the physical TTY:
 
 This workflow deliberately does not autostart Quattro at login, create a GDM
 session entry, change NVIDIA power settings, or alter network configuration.
+
+For an SSH-safe summary of the current or most recently archived run, use:
+
+```sh
+cd /home/looco/repos/omarchy_jetson
+./scripts/quattro-health-report.sh
+```
+
+Add `--require-run` when a completed or active run is required and a missing
+run should be treated as a failure. The report is read-only: it does not start
+or stop containers, change GDM, or modify host settings. The broader low-touch
+roadmap is recorded in [PHASE_3_PLAN.md](PHASE_3_PLAN.md).
