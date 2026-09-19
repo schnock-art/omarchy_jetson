@@ -12,6 +12,8 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
   property var status: ({})
+  property var actionStatus: ({})
+  property bool confirmRefresh: false
   readonly property var codex: root.status.codex || ({})
 
   function refresh() { if (!statusProc.running) statusProc.running = true }
@@ -39,6 +41,14 @@ Panel {
     }
     catch (error) { console.warn("Agent status parse failed:", error) }
   }
+  function updateActionStatus(raw) {
+    try { actionStatus = JSON.parse(raw) }
+    catch (error) { console.warn("Agent action status parse failed:", error) }
+  }
+  function refreshCodexUsage() {
+    if (!refreshProc.running) refreshProc.running = true
+    confirmRefresh = false
+  }
 
   IpcHandler {
     target: "omarchy.agents"
@@ -55,7 +65,16 @@ Panel {
     command: ["cat", "/tmp/jetson-agent-status/status.json"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateStatus(text) }
   }
-  Timer { interval: 5000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refresh() }
+  Process {
+    id: actionStatusProc
+    command: ["cat", "/tmp/jetson-actions/action-status.json"]
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateActionStatus(text) }
+  }
+  Process {
+    id: refreshProc
+    command: ["sh", "-c", "printf '%s\\n' refresh-codex-status-v1 > /tmp/jetson-actions/action-request"]
+  }
+  Timer { interval: 5000; running: true; repeat: true; triggeredOnStart: true; onTriggered: { root.refresh(); if (!actionStatusProc.running) actionStatusProc.running = true } }
 
   BarIconButton {
     id: button
@@ -96,6 +115,16 @@ Panel {
       InfoPair { label: "Limit windows"; value: root.codex.limits === undefined ? "—" : String(root.codex.limits.length || 0) }
       InfoPair { label: "Primary limit"; value: root.limitSummary() }
       InfoPair { label: "Updated"; value: root.age(root.codex.updatedAt) }
+      Rectangle {
+        width: parent.width
+        height: Style.space(34)
+        color: root.confirmRefresh ? "#8a5a22" : "#3d4859"
+        radius: Style.space(4)
+        Text { anchors.centerIn: parent; text: root.confirmRefresh ? "Confirm: refresh Codex usage" : "Refresh Codex usage…"; color: root.bar.foreground; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
+        MouseArea { anchors.fill: parent; onClicked: { if (root.confirmRefresh) root.refreshCodexUsage(); else root.confirmRefresh = true } }
+      }
+      Text { visible: root.confirmRefresh; width: parent.width; text: "This refreshes the existing read-only Codex usage snapshot. It does not launch an agent or expose credentials."; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.65; font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption }
+      Text { visible: !!root.actionStatus.message; width: parent.width; text: root.actionStatus.message; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.75; font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption }
       Text { visible: !!root.codex.usageStatusText; width: parent.width; text: root.codex.usageStatusText; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.75; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
       Text { width: parent.width; text: "Read-only bridge. Provider credentials and launching remain deferred."; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.65; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
     }

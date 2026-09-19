@@ -133,6 +133,15 @@ Super+Shift+E; the usual SSH health report should pass. If the session ends
 before completion, the registry must show the sample as failed rather than
 leave it running.
 
+### Follow-up visibility batch
+
+The next combined physical checkpoint adds explicit action feedback, a
+twice-confirmed refresh of the existing Codex usage snapshot, and a telemetry
+source-age indicator. The refresh only runs the existing host-side collector
+once under the desktop user; it launches no coding agent and exposes no
+credentials. The same short-lived gateway accepts exactly two fixed request
+values and records a sanitized result for the panels.
+
 ## Batch 4E — Additional providers
 
 Add Claude, Fireworks, local inference, or other providers one at a time using

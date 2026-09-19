@@ -52,6 +52,11 @@ Panel {
   function watts() {
     return telemetry.vinMilliwatts === undefined ? "—" : (telemetry.vinMilliwatts / 1000).toFixed(1) + " W"
   }
+  function age(timestamp) {
+    if (!timestamp) return "unknown"
+    var seconds = Math.max(0, Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000))
+    return isFinite(seconds) ? seconds + "s ago" : "unknown"
+  }
 
   function peak(field) {
     var result = 0
@@ -121,6 +126,13 @@ Panel {
           opacity: 0.65
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall
+        }
+        Text {
+          text: "Updated " + root.age(root.telemetry.updatedAt)
+          color: root.bar.foreground
+          opacity: 0.55
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
         }
       }
 

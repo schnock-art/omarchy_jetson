@@ -42,7 +42,12 @@ while IFS= read -r line; do
     ram_total=${ram#* }
   fi
   tmp="$OUT_FILE.tmp"
-  printf '{"ramUsedMb":%s,"ramTotalMb":%s,"cpuPercent":%s,"gpuPercent":%s,"junctionC":%s,"gpuC":%s,"vinMilliwatts":%s,"powerMode":"%s"}\n' \
-    "$ram_used" "$ram_total" "${cpu:-0}" "${gpu:-0}" "${tj:-0}" "${gpu_temp:-0}" "${vin:-0}" "$mode" >"$tmp"
+  updated=$(date --iso-8601=seconds)
+  jq -cn --arg updated "$updated" --arg mode "$mode" \
+    --argjson ram_used "$ram_used" --argjson ram_total "$ram_total" \
+    --argjson cpu "${cpu:-0}" --argjson gpu "${gpu:-0}" \
+    --argjson junction "${tj:-0}" --argjson gpu_temp "${gpu_temp:-0}" \
+    --argjson vin "${vin:-0}" \
+    '{updatedAt:$updated,ramUsedMb:$ram_used,ramTotalMb:$ram_total,cpuPercent:$cpu,gpuPercent:$gpu,junctionC:$junction,gpuC:$gpu_temp,vinMilliwatts:$vin,powerMode:$mode}' >"$tmp"
   mv "$tmp" "$OUT_FILE"
 done <"$FIFO"

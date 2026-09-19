@@ -15,6 +15,11 @@ GPU, and junction-temperature peaks for that short window. This history exists
 only in the running Quickshell process and disappears when the lab session
 ends; it does not create a host telemetry database.
 
+The panel also displays the age of the latest host sample. It should normally
+remain around one or two seconds while the panel is open; a growing value makes
+collector staleness visible without treating an idle zero-utilization reading
+as a fault.
+
 ## Runtime boundary
 
 `scripts/collect-jetson-telemetry.sh` runs on the host as `looco`, using the

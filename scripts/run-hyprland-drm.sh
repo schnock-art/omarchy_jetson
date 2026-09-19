@@ -225,7 +225,8 @@ if [ "$QUATTRO" -eq 1 ]; then
   chown "$HOST_UID:$HOST_GID" "$ACTION_GATEWAY_DIR"
   chmod 0700 "$ACTION_GATEWAY_DIR"
   setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --init-groups \
-    "$SCRIPT_DIR/quattro-action-gateway.sh" "$ACTION_GATEWAY_DIR" \
+    env HOME="/home/$HOST_USER" XDG_STATE_HOME="/home/$HOST_USER/.local/state" \
+    "$SCRIPT_DIR/quattro-action-gateway.sh" "$ACTION_GATEWAY_DIR" "$AGENT_STATUS_DIR/status.json" \
     >"$ACTION_GATEWAY_DIR/launcher.log" 2>&1 &
   ACTION_GATEWAY_PID=$!
   sleep 1

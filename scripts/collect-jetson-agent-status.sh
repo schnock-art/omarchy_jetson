@@ -2,14 +2,19 @@
 # Read-only host-side agent readiness collector for the Quattro lab.
 set -eu
 
-[ "$#" -eq 1 ] || { echo "Usage: $0 OUTPUT_JSON" >&2; exit 2; }
+[ "$#" -eq 1 ] || [ "$#" -eq 2 ] || { echo "Usage: $0 [--once] OUTPUT_JSON" >&2; exit 2; }
+ONCE=0
+if [ "${1:-}" = --once ]; then
+  ONCE=1
+  shift
+fi
 OUT_FILE=$1
 OUT_DIR=$(dirname "$OUT_FILE")
 mkdir -p "$OUT_DIR"
 usage_dir=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage
 omarchy_bin=${OMARCHY_PATH:-/home/looco/omarchy}/bin
 
-while :; do
+collect() {
   records=0
   [ -d "$usage_dir" ] && records=$(find "$usage_dir" -maxdepth 1 -type f -name '*.json' | wc -l)
   collectors=0
@@ -30,5 +35,10 @@ EOF
   jq -cn --argjson codex "$codex" \
     '{bridge:"ready",usageRecords:(if ($codex.id // "") != "" then 1 else 0 end),collectors:'"$collectors"',updaterPresent:'"$updater"',providerLaunch:"deferred",codex:$codex}' >"$tmp"
   mv "$tmp" "$OUT_FILE"
+}
+
+while :; do
+  collect
+  [ "$ONCE" -eq 0 ] || exit 0
   sleep 60
 done

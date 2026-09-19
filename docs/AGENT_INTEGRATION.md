@@ -35,3 +35,10 @@ limit summary when a live limit window is available. A record with zero usage
 is valid and is reported as such; an absent or malformed record is a health
 failure. If the local Codex CLI is unavailable, locally derived history remains
 visible while the panel states that live provider status is unavailable.
+
+During an active physical Quattro session, the panel also offers a
+twice-confirmed **Refresh Codex usage…** request. It runs the same host-side
+collector once as the desktop user, replaces only the sanitized status JSON,
+and returns a visible action result. It does not launch a coding agent, expose
+credentials, create a background process, or grant the shell a generic command
+path. The request gateway disappears when the lab session ends.

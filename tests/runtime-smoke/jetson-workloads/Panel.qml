@@ -12,6 +12,7 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
   property var jobs: []
+  property var actionStatus: ({})
   property bool confirmSample: false
 
   function refresh() { if (!registryProc.running) registryProc.running = true }
@@ -22,6 +23,10 @@ Panel {
   function submitHarmlessSample() {
     if (!requestProc.running) requestProc.running = true
     confirmSample = false
+  }
+  function updateActionStatus(raw) {
+    try { actionStatus = JSON.parse(raw) }
+    catch (error) { console.warn("Workload action status parse failed:", error) }
   }
 
   IpcHandler {
@@ -39,11 +44,16 @@ Panel {
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateRegistry(text) }
   }
   Process {
+    id: actionStatusProc
+    command: ["cat", "/tmp/jetson-actions/action-status.json"]
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateActionStatus(text) }
+  }
+  Process {
     id: requestProc
-    command: ["sh", "-c", "printf '%s\\n' submit-harmless-sample-v1 > /tmp/jetson-actions/submit-harmless-sample"]
+    command: ["sh", "-c", "printf '%s\\n' submit-harmless-sample-v1 > /tmp/jetson-actions/action-request"]
   }
   onOpenedChanged: if (opened) refresh()
-  Timer { interval: 3000; running: root.opened; repeat: true; onTriggered: root.refresh() }
+  Timer { interval: 3000; running: root.opened; repeat: true; onTriggered: { root.refresh(); if (!actionStatusProc.running) actionStatusProc.running = true } }
 
   BarIconButton {
     id: button
@@ -93,6 +103,7 @@ Panel {
         }
       }
       Text { visible: root.confirmSample; text: "This starts only the predeclared local 15-second sample. No agent, network request, or arbitrary command is launched."; color: root.bar.foreground; opacity: 0.65; wrapMode: Text.WordWrap; width: parent.width; font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption }
+      Text { visible: !!root.actionStatus.message; text: root.actionStatus.message; color: root.bar.foreground; opacity: 0.75; wrapMode: Text.WordWrap; width: parent.width; font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption }
       Text { visible: root.jobs.length === 0; text: "No registered workloads."; color: root.bar.foreground; opacity: 0.7; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
       Repeater {
         model: root.jobs.slice(0, 3)
