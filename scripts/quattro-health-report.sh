@@ -32,6 +32,7 @@ QS_STATE=
 HYPR_STATE=
 QS_LOG=
 HYPR_LOG=
+AGENT_STATUS_FILE=
 
 pass() { PASS=$((PASS + 1)); printf 'PASS  %s\n' "$*"; }
 warn() { WARN=$((WARN + 1)); printf 'WARN  %s\n' "$*"; }
@@ -61,6 +62,20 @@ container_logs() {
 latest_archive() {
   find "$ARCHIVE_DIR" -mindepth 2 -maxdepth 2 -type f -name 'quickshell-quattro-smoke.log' \
     -printf '%T@ %p\n' 2>/dev/null | sort -nr | sed -n '1{s/^[^ ]* //;p;}'
+}
+
+agent_status_from_inspect() {
+  python3 - "$1" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as source:
+    data = json.load(source)
+item = data[0] if isinstance(data, list) else data
+for mount in item.get("Mounts", []):
+    if mount.get("Destination") == "/tmp/jetson-agent-status":
+        print(mount.get("Source", ""))
+        break
+PY
 }
 
 printf 'Quattro Jetson lab health report\n'
@@ -119,12 +134,37 @@ fi
 
 ARCHIVE_LOG=$(latest_archive)
 if [ -n "$ARCHIVE_LOG" ]; then
+  ARCHIVE_RUN_DIR=$(dirname "$ARCHIVE_LOG")
   pass 'A retained Quattro run archive is available'
   note "$ARCHIVE_LOG"
 elif [ "$REQUIRE_RUN" -eq 1 ]; then
   fail 'No retained Quattro run archive was found'
 else
   warn 'No retained Quattro run archive was found yet'
+fi
+
+if [ "$DOCKER_OK" -eq 1 ] && [ -n "$QS_STATE" ]; then
+  AGENT_STATUS_DIR=$(docker_cmd inspect -f '{{range .Mounts}}{{if eq .Destination "/tmp/jetson-agent-status"}}{{.Source}}{{end}}{{end}}' quickshell-quattro-smoke 2>/dev/null || true)
+elif [ -n "${ARCHIVE_RUN_DIR:-}" ] && [ -f "$ARCHIVE_RUN_DIR/quickshell-quattro-smoke.inspect.json" ]; then
+  AGENT_STATUS_DIR=$(agent_status_from_inspect "$ARCHIVE_RUN_DIR/quickshell-quattro-smoke.inspect.json" 2>/dev/null || true)
+else
+  AGENT_STATUS_DIR=
+fi
+if [ -n "$AGENT_STATUS_DIR" ]; then AGENT_STATUS_FILE="$AGENT_STATUS_DIR/status.json"; fi
+
+printf '\nAgent bridge\n'
+if [ -f "$AGENT_STATUS_FILE" ] && jq -e . "$AGENT_STATUS_FILE" >/dev/null 2>&1; then
+  codex_id=$(jq -r '.codex.id // empty' "$AGENT_STATUS_FILE")
+  codex_today=$(jq -r '.codex.todayPrompts // empty' "$AGENT_STATUS_FILE")
+  if [ "$codex_id" = codex ] && [ -n "$codex_today" ]; then
+    pass "Codex record mounted ($codex_today prompts today)"
+  else
+    fail 'Agent bridge mounted but has no Codex usage record'
+  fi
+elif [ -n "$AGENT_STATUS_FILE" ]; then
+  fail "Agent status file is missing or invalid: $AGENT_STATUS_FILE"
+else
+  warn 'No agent-status mount was found (run predates the agent bridge)'
 fi
 
 if [ -n "$QS_STATE" ] || [ -n "$ARCHIVE_LOG" ]; then

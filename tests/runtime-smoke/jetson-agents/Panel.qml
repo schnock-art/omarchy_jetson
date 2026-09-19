@@ -16,7 +16,12 @@ Panel {
 
   function refresh() { if (!statusProc.running) statusProc.running = true }
   function updateStatus(raw) {
-    try { status = JSON.parse(raw) }
+    try {
+      status = JSON.parse(raw)
+      console.log("JETSON_AGENT_STATUS", status.usageRecords || 0,
+                  status.codex && status.codex.todayPrompts !== undefined
+                    ? status.codex.todayPrompts : "no-codex-record")
+    }
     catch (error) { console.warn("Agent status parse failed:", error) }
   }
 
