@@ -30,6 +30,8 @@ case "${START_TTY#/dev/tty}" in
     exit 1 ;;
 esac
 
+"$SCRIPT_DIR/check-syntax.sh"
+
 archive_stopped_container() {
   name=$1
   sudo docker container inspect "$name" >/dev/null 2>&1 || return 0

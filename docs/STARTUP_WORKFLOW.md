@@ -4,6 +4,7 @@ From the Jetson's physical text console, start the lab session with:
 
 ```sh
 cd /home/looco/repos/omarchy_jetson
+./scripts/check-syntax.sh
 ./scripts/start-quattro-lab.sh
 ```
 

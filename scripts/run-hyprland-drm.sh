@@ -9,6 +9,7 @@ QUATTRO=0
 ACTIVE_TTY=
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 TEST_CONFIG="$SCRIPT_DIR/../tests/runtime-smoke/hyprland.conf"
+"$SCRIPT_DIR/check-syntax.sh"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --stop-gdm) STOP_GDM=1; shift ;;
