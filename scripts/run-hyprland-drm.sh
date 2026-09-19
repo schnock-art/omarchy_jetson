@@ -147,9 +147,6 @@ cleanup_preflight() {
   stop_agent_status
   stop_system_proxy
 }
-  stop_telemetry
-  stop_system_proxy
-}
 trap cleanup_preflight EXIT
 if [ "$QUATTRO" -eq 1 ]; then
   command -v xdg-dbus-proxy >/dev/null
