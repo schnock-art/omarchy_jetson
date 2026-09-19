@@ -99,3 +99,19 @@ image update; and the corrected Jetson power icon appeared and opened its panel.
 This confirms the visible lab-status batch end to end. The power panel showed
 the NVIDIA mode read at startup. No network change, pairing, profile change,
 suspend, reboot, or NVIDIA mode change was performed.
+
+## Phase 3 stability result — 2026-09-19
+
+The Quattro lab completed its reboot-resilience check without changing the
+normal GDM session. A pre-reboot baseline captured GDM, Docker, the desktop
+user's D-Bus and PipeWire sockets, kernel version, and both retained lab
+images. After a normal reboot, the read-only verification matched that
+baseline. A subsequent physical Quattro run rendered successfully and exited
+cleanly back to GDM.
+
+The post-run health report recorded 15 passes, no warnings, and no failures.
+It confirmed configuration load, Hyprland IPC, PipeWire, notifications, Jetson
+power panel, clean Hyprland exit, and a mounted live Codex usage record (114
+prompts on the day of the test). The exact run evidence is retained under
+`artifacts/quattro-runs/20260919-204854/`; the corresponding health report is
+under `artifacts/quattro-health/20260919-205151-health.txt`.
