@@ -28,6 +28,9 @@ The sole candidate change is:
 
 The original and candidate files, manifest, and baseline probe are retained in
 `artifacts/gdm-wayland-experiments/20260922-090045/`.
+The prepared bundle records dirty base revision
+`60d8cc33598afce72039ea0868dd7ff5101b0b4e`; the tested conductor and runbook
+are committed as `73a8a9626f1e76797d5fc5b24c1dee7939d9a681`.
 
 ## Safety prerequisites
 
