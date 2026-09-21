@@ -17,10 +17,10 @@ The preferred architecture remains a user-space Ubuntu adaptation that
 preserves L4T, JetPack, CUDA, TensorRT, and the NVIDIA graphics stack. Quattro
 runs as an explicit, disposable lab session; GDM remains the normal desktop.
 
-The MVP orchestration loop is implemented and physically accepted. The
-remaining delivery gap is to commit or otherwise identify the exact known-good
-source state, document schema compatibility, and complete the maintenance
-handoff without expanding the accepted feature scope.
+The MVP orchestration loop is implemented, physically accepted, and committed
+as the reproducible maintenance baseline. The next delivery track is the
+staged, reversible integration of an explicitly selectable GDM session without
+expanding the accepted MVP claim or weakening the normal Ubuntu recovery path.
 
 ## Documents
 

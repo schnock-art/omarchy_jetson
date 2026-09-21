@@ -88,8 +88,8 @@ It must not modify GDM's default-session policy or rely on automatic login.
 
 ### S0 — Freeze the accepted lab baseline
 
-Status: implemented and physically verified; commit handoff pending when this
-plan was written.
+Status: complete. The accepted source baseline is commit
+`583d3280b36b9067b9d79036f347efffee74a92b`.
 
 - Commit the current MVP implementation and documentation to `main`.
 - Record the exact container image IDs, upstream Omarchy revision, acceptance

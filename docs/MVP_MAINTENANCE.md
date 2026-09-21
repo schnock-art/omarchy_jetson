@@ -18,7 +18,7 @@ The run and build inputs are:
 | `hyprland:phase2-runtime` image | `sha256:efa5c055c72a0856dc0116b4fba87ec40d5cba2d19903f35300d3c68d9c14ed9` |
 | `quickshell:phase1-hypr-lab` image | `sha256:17a2f09804d6b4ae883249bed30f8caab9d6beaa9b22a30fecd57a40a41e4135` |
 | Acceptance manifest SHA-256 | `98e0c1c6abcf1b1c9754502986eaab2ee44dbf0b0acf35c0b10a1329f83aac9d` |
-| Committed MVP implementation | `TO_BE_RECORDED_AFTER_BASELINE_COMMIT` |
+| Committed MVP implementation | `583d3280b36b9067b9d79036f347efffee74a92b` |
 
 The base revision alone does not reconstruct the accepted run because its
 worktree was dirty. The committed MVP implementation is the reproducible source

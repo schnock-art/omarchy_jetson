@@ -229,7 +229,7 @@ has evidence; use the status vocabulary defined in `AGENTS.md`.
 | M3 — Action protocol | Ready for physical test | Confirm usage refresh no longer replaces the dedicated MVP-agent status |
 | M4 — Agent adapter | Physically verified | Detached Codex survived normal exit, evaluated the completed archive, and stopped at the human gate |
 | M5 — End-to-end proof | MVP complete | Run `20260922-063507-9503` is `complete` with a passing stored acceptance result and human visual evidence |
-| M6 — Handoff | Implemented | Commit the documented baseline to `main`, record that commit in `docs/MVP_MAINTENANCE.md`, and verify the clean committed tree |
+| M6 — Handoff | MVP complete | Baseline `583d3280b36b9067b9d79036f347efffee74a92b` is recorded in `docs/MVP_MAINTENANCE.md`; proceed only through the separate selectable-session plan |
 
 When a milestone is not complete, record the exact next gate rather than a
 percentage. If work must proceed out of order, note the dependency and do not
