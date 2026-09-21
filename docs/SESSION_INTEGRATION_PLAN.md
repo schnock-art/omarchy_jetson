@@ -136,6 +136,12 @@ ownership, partial startup timeout, interrupted child cleanup, malformed
 identity, atomic archival, and repeated cleanup. S1 is complete; S2 remains a
 separate read-only investigation.
 
+Source correlation: the first physical slice ran from a dirty tree based on
+`72d459510df977c0ac43ac81c7eabb0a0cfefa50` and was committed as
+`037ecdaaba26beeb4c426caaaac92ff16922e88a`. The final service-ownership run
+records base `037ecdaaba26beeb4c426caaaac92ff16922e88a`; those tested working-tree
+changes are committed as `8ffd128e485ac49440dea5c18a8efcafe960c81b`.
+
 ### S2 — Prove logind/GDM seat ownership without installing a session
 
 Status: planned investigation.
