@@ -57,6 +57,8 @@ Probe `artifacts/session-probes/20260922-083639.json` recorded the following:
 The result is intentionally `blocked`, with `gdmWaylandEnabled` as the only
 failed policy/capability check. The working tree was dirty during the probe and
 its base revision was `4d97eb95a21cc0ad1a64b57f058ee2d4dcbfcfe2`.
+The tested probe and decision implementation is committed as
+`8ded5454355087b7e22cd3aeec48453fc9d8e15a`.
 
 ## Architecture selected if the blocker is resolved
 
