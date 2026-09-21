@@ -2,16 +2,18 @@
 
 ## Decision status
 
-The read-only S2 probe establishes a conditional architecture but identifies one
-host-policy blocker: this Jetson has `WaylandEnable=false` in
-`/etc/gdm3/custom.conf`.
+S2 is complete. The read-only probe established the narrow-service
+architecture, and reversible experiment `20260922-090045` proved that this
+Jetson can offer both Ubuntu Wayland and Ubuntu Xorg sessions without regressing
+GDM, NVIDIA device access, or CUDA. The experiment then restored the exact
+original `/etc/gdm3/custom.conf` and successfully returned to the normal Xorg
+desktop.
 
-The maintainer approved designing a reversible GDM Wayland feasibility
-experiment. The conductor and prepared bundle are documented in
-[GDM_WAYLAND_EXPERIMENT.md](GDM_WAYLAND_EXPERIMENT.md). Preparation changed no
-GDM, login, device, NVIDIA, or session configuration. Do not install a Quattro
-session entry or begin the privileged S3 service until that experiment is run,
-rolled back, and accepted.
+The result authorizes implementation and fixture testing of the S3 narrow
+session service and unprivileged wrapper. It does not authorize installing the
+Quattro GDM session entry, changing GDM defaults, or enabling automatic login.
+See [GDM_WAYLAND_EXPERIMENT.md](GDM_WAYLAND_EXPERIMENT.md) for the retained
+machine and human evidence.
 
 ## Reproducing the probe
 
@@ -88,12 +90,12 @@ Docker, raw input, or `/dev/tty0`. A host-native Hyprland installation is also
 not selected because it would widen host package/runtime changes without
 removing the GDM Wayland policy blocker.
 
-## Required explicit decision
+## Completed explicit decision
 
-The safest current option remains the physically verified `lab-vt` launcher.
-The maintainer authorized design—but not implicit execution—of a **temporary,
-reversible GDM Wayland feasibility experiment**. The prepared experiment
-includes:
+The supported display path remains the physically verified `lab-vt` launcher
+while S3 is implemented. The maintainer authorized and completed a
+**temporary, reversible GDM Wayland feasibility experiment**. The experiment
+included:
 
 1. an exact backup and checksum of `/etc/gdm3/custom.conf`;
 2. an SSH recovery connection and tested command to restore the file and GDM;
@@ -104,6 +106,6 @@ includes:
 7. immediate rollback if GDM, NVIDIA graphics, CUDA, or the normal desktop
    regresses.
 
-The design and rollback tooling are ready as experiment `20260922-090045`.
-Running its explicit apply/restart commands is the next physical gate. This is
-not permission to install Quattro as the default or bypass later validation.
+Experiment `20260922-090045` passed both session checks and mandatory rollback.
+S3 is now the next gate. This remains separate from S4 installation and is not
+permission to install Quattro as the default or bypass later validation.

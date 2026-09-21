@@ -144,11 +144,13 @@ changes are committed as `8ffd128e485ac49440dea5c18a8efcafe960c81b`.
 
 ### S2 — Prove logind/GDM seat ownership without installing a session
 
-Status: ready for an explicitly controlled physical experiment. The read-only probe is
-implemented and retained as `artifacts/session-probes/20260922-083639.json`.
-The logind seat supports the narrow-service container architecture, but
-`/etc/gdm3/custom.conf` explicitly sets `WaylandEnable=false`. No host policy
-was changed. See [SESSION_INTEGRATION_DECISION.md](SESSION_INTEGRATION_DECISION.md).
+Status: complete. The read-only probe is retained as
+`artifacts/session-probes/20260922-083639.json`. It established the narrow
+host-service architecture and identified GDM's explicit Wayland policy as the
+only blocker. Reversible experiment `20260922-090045` then proved both Ubuntu
+Wayland and Ubuntu Xorg sessions, preserved NVIDIA/CUDA operation, returned to
+GDM, and restored the exact original configuration.
+See [SESSION_INTEGRATION_DECISION.md](SESSION_INTEGRATION_DECISION.md).
 
 - Capture the environment and permissions GDM grants to a minimal test session:
   session type, seat, VT, DRM lease/master behavior, input access, D-Bus,
@@ -164,17 +166,16 @@ Gate: a non-destructive probe establishes one viable architecture with exact
 permissions and a documented recovery path. No production session entry is
 installed yet.
 
-The conditional architecture and exact permissions are documented. The
-maintainer approved the reversible experiment design, and prepared experiment
-`20260922-090045` changes only `WaylandEnable`. S2 remains incomplete until the
-experiment is executed, both Ubuntu session types pass, and the original GDM
-configuration is restored. See
-[GDM_WAYLAND_EXPERIMENT.md](GDM_WAYLAND_EXPERIMENT.md).
+The architecture, exact permissions, automated verification, human
+observations, and mandatory rollback are documented. S2's acceptance gate is
+met. See [GDM_WAYLAND_EXPERIMENT.md](GDM_WAYLAND_EXPERIMENT.md).
 
 ### S3 — Implement a narrow session service and wrapper
 
-Status: blocked; conditional on the S2 GDM Wayland design decision and a passing
-reversible feasibility experiment.
+Status: ready to implement. S2 selected the containerized presentation plane
+with a narrow root-owned host service and completed the required reversible
+feasibility experiment. S3 must remain fixture-only until its security and
+state-transition gates pass; it does not install a GDM session entry.
 
 - Add an unprivileged wrapper that validates its GDM/logind session and creates
   one run ID.

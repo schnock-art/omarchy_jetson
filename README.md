@@ -13,7 +13,8 @@ of the selectable-session plan is physically verified. Runs
 `20260922-073620-56102` and `20260922-080145-91129` prove the separated
 lifecycle/service orchestration still renders Quattro, publishes telemetry and
 agent state, executes correlated fixed actions, archives evidence, and returns
-to GDM. The next stage is the read-only GDM/logind seat feasibility probe.
+to GDM. The S2 seat probe and reversible GDM Wayland experiment also passed;
+the next stage is the fixture-tested narrow session service and wrapper.
 
 ## Current position
 
@@ -118,7 +119,10 @@ Quattro the preferred session, enabling automatic login, or starting it at boot
 remains an explicit future safety decision rather than part of this plan.
 
 The S2 read-only probe found that the logind seat and device model support the
-planned narrow host-service architecture, but GDM currently has Wayland
-explicitly disabled. No setting was changed. Further session integration is
-paused at the design decision documented in
+planned narrow host-service architecture. Reversible experiment
+`20260922-090045` then verified normal Ubuntu Wayland and Xorg sessions,
+NVIDIA/CUDA health, GDM recovery, and byte-for-byte restoration of the original
+GDM configuration. S2 is complete; S3 implements and fixture-tests the fixed,
+allowlisted host service and unprivileged wrapper without installing a GDM
+session entry. See
 [docs/SESSION_INTEGRATION_DECISION.md](docs/SESSION_INTEGRATION_DECISION.md).

@@ -10,13 +10,13 @@ login, change the preferred/default session, stop GDM permanently, or modify
 the NVIDIA/JetPack stack. The experiment must end by restoring the exact
 original GDM configuration even when the result passes.
 
-The prepared experiment is:
+The completed experiment is:
 
 ```text
 ID:                20260922-090045
 Original SHA-256:  a497ef003bdaafb86f23ab304f13eac8f2565d629acbfd64babac1f22a840a5a
 Candidate SHA-256: e887bf9330b99dd818d64eb49f352a2105d3e3f9a49860e6ca6640a037d2285d
-State:             prepared
+State:             rolled-back (passed)
 ```
 
 The sole candidate change is:
@@ -31,6 +31,28 @@ The original and candidate files, manifest, and baseline probe are retained in
 The prepared bundle records dirty base revision
 `60d8cc33598afce72039ea0868dd7ff5101b0b4e`; the tested conductor and runbook
 are committed as `73a8a9626f1e76797d5fc5b24c1dee7939d9a681`.
+
+## Result
+
+The experiment passed on 2026-09-22. The first verification recorded an active
+Ubuntu Wayland session and the second recorded an active Ubuntu Xorg session.
+Both records retained healthy NVIDIA device access and CUDA availability. The
+operator confirmed that both desktops rendered normally, accepted keyboard and
+pointer input, and returned to GDM. After the second check, the rollback
+restored the exact original file hash, restarted GDM, and the operator logged
+back into the normal Xorg desktop successfully.
+
+The final manifest state is `rolled-back`; `/etc/gdm3/custom.conf` again has
+SHA-256
+`a497ef003bdaafb86f23ab304f13eac8f2565d629acbfd64babac1f22a840a5a`.
+Machine observations are retained as `verification-1-wayland.json` and
+`verification-2-x11.json`; the explicit visual/input report is retained as
+`human-observation.json` in the experiment bundle.
+
+This result closes S2 and permits implementation of the S3 narrow session
+service and unprivileged wrapper. It does not authorize installation of a GDM
+session entry, a preferred-session change, automatic login, or boot-time
+Quattro.
 
 ## Safety prerequisites
 
