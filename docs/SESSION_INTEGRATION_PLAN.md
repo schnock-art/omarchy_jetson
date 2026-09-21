@@ -144,7 +144,11 @@ changes are committed as `8ffd128e485ac49440dea5c18a8efcafe960c81b`.
 
 ### S2 — Prove logind/GDM seat ownership without installing a session
 
-Status: planned investigation.
+Status: blocked on an explicit design decision. The read-only probe is
+implemented and retained as `artifacts/session-probes/20260922-083639.json`.
+The logind seat supports the narrow-service container architecture, but
+`/etc/gdm3/custom.conf` explicitly sets `WaylandEnable=false`. No host policy
+was changed. See [SESSION_INTEGRATION_DECISION.md](SESSION_INTEGRATION_DECISION.md).
 
 - Capture the environment and permissions GDM grants to a minimal test session:
   session type, seat, VT, DRM lease/master behavior, input access, D-Bus,
@@ -160,9 +164,15 @@ Gate: a non-destructive probe establishes one viable architecture with exact
 permissions and a documented recovery path. No production session entry is
 installed yet.
 
+The conditional architecture and exact permissions are now documented. The
+gate cannot be marked complete until the maintainer explicitly decides whether
+to design a reversible GDM Wayland feasibility experiment; keeping the current
+`lab-vt` workflow is the safe default.
+
 ### S3 — Implement a narrow session service and wrapper
 
-Status: planned and conditional on S2.
+Status: blocked; conditional on the S2 GDM Wayland design decision and a passing
+reversible feasibility experiment.
 
 - Add an unprivileged wrapper that validates its GDM/logind session and creates
   one run ID.

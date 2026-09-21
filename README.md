@@ -44,6 +44,7 @@ expanding the accepted MVP claim or weakening the normal Ubuntu recovery path.
 - [Quattro lab startup](docs/STARTUP_WORKFLOW.md)
 - [MVP maintenance baseline](docs/MVP_MAINTENANCE.md)
 - [Selectable GDM session plan](docs/SESSION_INTEGRATION_PLAN.md)
+- [GDM/logind feasibility decision](docs/SESSION_INTEGRATION_DECISION.md)
 
 ## Status
 
@@ -114,3 +115,9 @@ Until that plan reaches its physical acceptance gate, the only supported start
 path remains `./scripts/start-quattro-lab.sh` from a local text console. Making
 Quattro the preferred session, enabling automatic login, or starting it at boot
 remains an explicit future safety decision rather than part of this plan.
+
+The S2 read-only probe found that the logind seat and device model support the
+planned narrow host-service architecture, but GDM currently has Wayland
+explicitly disabled. No setting was changed. Further session integration is
+paused at the design decision documented in
+[docs/SESSION_INTEGRATION_DECISION.md](docs/SESSION_INTEGRATION_DECISION.md).

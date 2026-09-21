@@ -166,3 +166,18 @@ baseline path printed by the capture command:
 
 The check verifies GDM, Docker, the desktop user's D-Bus and PipeWire sockets,
 the kernel, and the two retained lab images. It changes no system state.
+
+## Read-only GDM session capability probe
+
+From the normal GDM desktop, capture the current logind seat, runtime sockets,
+device permissions, Docker boundary, and GDM Wayland policy without changing
+the host:
+
+```sh
+probe="artifacts/session-probes/$(date +%Y%m%d-%H%M%S).json"
+./scripts/quattro-session-probe.py capture --output "$probe"
+```
+
+A valid probe may exit `1` when it records a policy blocker. See
+[SESSION_INTEGRATION_DECISION.md](SESSION_INTEGRATION_DECISION.md) before
+interpreting or acting on the result.

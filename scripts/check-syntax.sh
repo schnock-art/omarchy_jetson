@@ -41,11 +41,12 @@ for file in $shell_files; do
   esac
 done
 
-python3 - "$ROOT_DIR/scripts/quattro-mvp.py" <<'PY'
+python3 - "$ROOT_DIR/scripts/quattro-mvp.py" "$ROOT_DIR/scripts/quattro-session-probe.py" "$ROOT_DIR/tests/session/test-session-probe.py" <<'PY'
 import ast
 import pathlib
 import sys
-ast.parse(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"), filename=sys.argv[1])
+for filename in sys.argv[1:]:
+    ast.parse(pathlib.Path(filename).read_text(encoding="utf-8"), filename=filename)
 PY
 
 sh -n "$ROOT_DIR/tests/mvp/test-conductor.sh"

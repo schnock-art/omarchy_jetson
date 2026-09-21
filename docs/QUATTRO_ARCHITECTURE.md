@@ -7,3 +7,21 @@ The shell has a QML entry point, plugin and bar-widget registries, first-party p
 This architecture is attractive for the Workshop because participant indicators, GPU telemetry, model status, and notifications could eventually be ordinary plugins. It also means the shell is not a standalone “theme”: it depends on a compositor, Wayland surfaces, session startup, fonts/icons, utilities, and a working IPC path.
 
 The strongest reusable boundary appears to be the shell/plugin model and IPC contract. The weakest boundary is the surrounding Omarchy command/configuration and Arch packaging layer.
+
+## Session integration boundary
+
+The accepted `lab-vt` backend separates session-neutral lifecycle policy,
+fixed host-service ownership, and physical display mechanics. A future GDM
+backend must reuse the first two and replace only the VT/GDM mechanism.
+
+The S2 capability probe selects a conditional architecture: an unprivileged
+GDM wrapper identifies its active logind session while a narrow root-owned
+service starts the two fixed containers with the assigned seat devices. The
+wrapper does not receive Docker access, and the service does not accept caller
+commands, image names, paths, mounts, or device arguments.
+
+That architecture is currently blocked because GDM Wayland is explicitly
+disabled on this Jetson. Do not implement the service or install a session entry
+until the reversible experiment in
+[SESSION_INTEGRATION_DECISION.md](SESSION_INTEGRATION_DECISION.md) is explicitly
+approved and passes. The physical `lab-vt` backend remains the recovery path.
