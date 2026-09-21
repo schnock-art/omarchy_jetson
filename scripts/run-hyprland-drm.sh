@@ -10,6 +10,7 @@ ACTIVE_TTY=
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 TEST_CONFIG="$SCRIPT_DIR/../tests/runtime-smoke/hyprland.conf"
 . "$SCRIPT_DIR/quattro-session-common.sh"
+. "$SCRIPT_DIR/quattro-session-services.sh"
 SESSION_BACKEND=${QUATTRO_SESSION_BACKEND:-lab-vt}
 quattro_require_backend "$SESSION_BACKEND" lab-vt
 RUN_ID=${QUATTRO_RUN_ID:-$(quattro_new_run_id)}
@@ -136,122 +137,26 @@ if docker container inspect hyprland-phase2-drm >/dev/null 2>&1; then
   echo "Container hyprland-phase2-drm already exists. Inspect its logs or remove that exact stopped container first." >&2
   exit 1
 fi
-SYSTEM_PROXY_PID=
-TELEMETRY_PID=
-AGENT_STATUS_PID=
-ACTION_GATEWAY_PID=
+quattro_services_init
 archive_runtime_evidence() {
   [ "$QUATTRO" -eq 1 ] || return 0
   archive_failed=0
   mkdir -p "$SESSION_ARCHIVE_DIR"
-  quattro_archive_file "$AGENT_STATUS_DIR/status.json" "$SESSION_ARCHIVE_DIR" agent-status.json || archive_failed=1
-  quattro_archive_file "$TELEMETRY_DIR/telemetry.json" "$SESSION_ARCHIVE_DIR" telemetry.json || archive_failed=1
-  quattro_archive_file "$ACTION_GATEWAY_DIR/action-status.json" "$SESSION_ARCHIVE_DIR" action-status.json || archive_failed=1
-  quattro_archive_file "$ACTION_GATEWAY_DIR/mvp-status.json" "$SESSION_ARCHIVE_DIR" mvp-status.json || archive_failed=1
-  quattro_archive_file "$ACTION_GATEWAY_DIR/gateway.log" "$SESSION_ARCHIVE_DIR" action-gateway.log || archive_failed=1
-  quattro_archive_file "$ACTION_GATEWAY_DIR/launcher.log" "$SESSION_ARCHIVE_DIR" action-launcher.log || archive_failed=1
+  quattro_services_archive "$SESSION_ARCHIVE_DIR" || archive_failed=1
   quattro_archive_file "$WORKLOAD_DIR/registry.json" "$SESSION_ARCHIVE_DIR" workload-registry.json || archive_failed=1
   quattro_capture_container quickshell-quattro-smoke "$SESSION_ARCHIVE_DIR" || archive_failed=1
   quattro_capture_container hyprland-phase2-drm "$SESSION_ARCHIVE_DIR" || archive_failed=1
   [ "$archive_failed" -eq 0 ]
 }
-stop_system_proxy() {
-  if [ -n "$SYSTEM_PROXY_PID" ]; then
-    quattro_stop_pid "$SYSTEM_PROXY_PID"
-    SYSTEM_PROXY_PID=
-  fi
-}
-stop_telemetry() {
-  if [ -n "$TELEMETRY_PID" ]; then
-    quattro_stop_pid "$TELEMETRY_PID"
-    TELEMETRY_PID=
-  fi
-}
-stop_agent_status() {
-  if [ -n "$AGENT_STATUS_PID" ]; then
-    quattro_stop_pid "$AGENT_STATUS_PID"
-    AGENT_STATUS_PID=
-  fi
-}
-stop_action_gateway() {
-  if [ -n "$ACTION_GATEWAY_PID" ]; then
-    quattro_stop_pid "$ACTION_GATEWAY_PID"
-    ACTION_GATEWAY_PID=
-  fi
-}
 cleanup_preflight() {
-  stop_action_gateway
-  stop_telemetry
-  stop_agent_status
-  stop_system_proxy
+  quattro_services_stop
 }
 trap cleanup_preflight EXIT
 if [ "$QUATTRO" -eq 1 ]; then
   "$SCRIPT_DIR/quattro-mvp.py" finalize --run-id "$RUN_ID" >/dev/null
   chown -R "$HOST_UID:$HOST_GID" "$SESSION_ARCHIVE_DIR"
-  command -v xdg-dbus-proxy >/dev/null
-  command -v setpriv >/dev/null
-  SYSTEM_PROXY_DIR=$(mktemp -d /tmp/jetson-system-bus.XXXXXX)
-  chown "$HOST_UID:$HOST_GID" "$SYSTEM_PROXY_DIR"
-  setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --init-groups \
-    sh "$SCRIPT_DIR/system-bus-readonly.sh" "$SYSTEM_PROXY_DIR/bus" \
-    >"$SYSTEM_PROXY_DIR/proxy.log" 2>&1 &
-  SYSTEM_PROXY_PID=$!
-  quattro_wait_for_path socket "$SYSTEM_PROXY_DIR/bus" 5 || { echo "System bus proxy failed: $SYSTEM_PROXY_DIR/proxy.log" >&2; exit 1; }
-  QS_SYSTEM_ARGS="--mount type=bind,src=$SYSTEM_PROXY_DIR/bus,dst=/tmp/host-system-bus,readonly -e DBUS_SYSTEM_BUS_ADDRESS=unix:path=/tmp/host-system-bus"
-  # shellcheck disable=SC2086
-  docker run --rm --network none --security-opt apparmor=unconfined \
-    --user "$HOST_UID:$HOST_GID" $QS_SYSTEM_ARGS \
-    --mount "type=bind,src=$SCRIPT_DIR/../tests/runtime-smoke,dst=/test,readonly" \
-    -e HOME=/tmp -e LANG=C.UTF-8 -e XDG_RUNTIME_DIR=/tmp/probe-runtime \
-    -e QT_QPA_PLATFORM=offscreen -e QS_BIN="$QS_BIN" \
-    --entrypoint sh "$QS_IMAGE" -c \
-    'mkdir -m 700 /tmp/probe-runtime; timeout 15 "$QS_BIN" --no-color -p /test/system-services-probe.qml'
-  [ -x "$SCRIPT_DIR/collect-jetson-telemetry.sh" ] || {
-    echo "Telemetry collector is missing or not executable: $SCRIPT_DIR/collect-jetson-telemetry.sh" >&2
-    exit 1
-  }
-  TELEMETRY_DIR=$(mktemp -d /tmp/jetson-telemetry.XXXXXX)
-  chown "$HOST_UID:$HOST_GID" "$TELEMETRY_DIR"
-  setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --init-groups \
-    "$SCRIPT_DIR/collect-jetson-telemetry.sh" "$TELEMETRY_DIR/telemetry.json" \
-    >"$TELEMETRY_DIR/collector.log" 2>&1 &
-  TELEMETRY_PID=$!
-  quattro_wait_for_path file "$TELEMETRY_DIR/telemetry.json" 5 || {
-    echo "Telemetry collector failed: $TELEMETRY_DIR/collector.log" >&2
-    exit 1
-  }
-  QS_TELEMETRY_ARGS="--mount type=bind,src=$TELEMETRY_DIR,dst=/tmp/jetson-telemetry,readonly"
-  AGENT_STATUS_DIR=$(mktemp -d /tmp/jetson-agent-status.XXXXXX)
-  chown "$HOST_UID:$HOST_GID" "$AGENT_STATUS_DIR"
-  # sudo leaves HOME pointing at root. Codex local session discovery belongs to
-  # the desktop user, so make that identity explicit before dropping privileges.
-  setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --init-groups \
-    env HOME="/home/$HOST_USER" XDG_STATE_HOME="/home/$HOST_USER/.local/state" PATH="$HOST_AGENT_PATH" \
-    "$SCRIPT_DIR/collect-jetson-agent-status.sh" "$AGENT_STATUS_DIR/status.json" \
-    >"$AGENT_STATUS_DIR/collector.log" 2>&1 &
-  AGENT_STATUS_PID=$!
-  quattro_wait_for_path file "$AGENT_STATUS_DIR/status.json" 5 || {
-    echo "Agent status bridge failed: $AGENT_STATUS_DIR/collector.log" >&2
-    exit 1
-  }
-  QS_AGENT_STATUS_ARGS="--mount type=bind,src=$AGENT_STATUS_DIR,dst=/tmp/jetson-agent-status,readonly"
-  ACTION_GATEWAY_DIR=$(mktemp -d /tmp/jetson-action-gateway.XXXXXX)
-  chown "$HOST_UID:$HOST_GID" "$ACTION_GATEWAY_DIR"
-  chmod 0700 "$ACTION_GATEWAY_DIR"
-  setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --init-groups \
-    env HOME="/home/$HOST_USER" XDG_STATE_HOME="/home/$HOST_USER/.local/state" PATH="$HOST_AGENT_PATH" \
-    "$SCRIPT_DIR/quattro-action-gateway.sh" "$ACTION_GATEWAY_DIR" "$AGENT_STATUS_DIR/status.json" "$RUN_ID" \
-    >"$ACTION_GATEWAY_DIR/launcher.log" 2>&1 &
-  ACTION_GATEWAY_PID=$!
-  sleep 1
-  kill -0 "$ACTION_GATEWAY_PID" 2>/dev/null || {
-    echo "Action gateway failed: $ACTION_GATEWAY_DIR/launcher.log" >&2
-    exit 1
-  }
-  # This is intentionally the sole writable host mount in Quattro. The
-  # gateway accepts only one fixed, harmless request and exits with the run.
-  QS_ACTION_ARGS="--mount type=bind,src=$ACTION_GATEWAY_DIR,dst=/tmp/jetson-actions"
+  quattro_services_start "$SCRIPT_DIR" "$HOST_USER" "$HOST_UID" "$HOST_GID" \
+    "$HOST_AGENT_PATH" "$QS_IMAGE" "$QS_BIN" "$RUN_ID" || exit 1
 fi
 echo "Preflight passed: console=$ACTIVE_TTY, image=hyprland:phase2-runtime, uid=$HOST_UID"
 [ "$CHECK_ONLY" -eq 0 ] || exit 0
@@ -276,10 +181,7 @@ cleanup() {
     echo "Quickshell logs retained: sudo docker logs $QS_CONTAINER"
   fi
   docker stop --time 5 hyprland-phase2-drm >/dev/null 2>&1 || true
-  stop_action_gateway
-  stop_telemetry
-  stop_agent_status
-  stop_system_proxy
+  quattro_services_stop
   if [ "$QUATTRO" -eq 1 ]; then
     archive_runtime_evidence || archive_failed=1
     revision=$(git -C "$SCRIPT_DIR/.." rev-parse HEAD 2>/dev/null || echo unavailable)

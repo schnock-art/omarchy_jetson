@@ -20,8 +20,9 @@ containers so a new one can start. Archives are local under
 The launcher generates one run ID and explicitly carries it through `sudo`.
 It also selects the fixed `lab-vt` lifecycle backend. Backend names, run IDs,
 container labels, bounded readiness waits, cleanup, and evidence recovery share
-the session-neutral policy in `scripts/quattro-session-common.sh`; unknown
-backends fail before the launcher can change the display.
+the session-neutral policy in `scripts/quattro-session-common.sh`. Fixed
+host-service startup and ownership live in `scripts/quattro-session-services.sh`.
+Unknown backends fail before the launcher can change the display.
 Both lab containers are labelled with that ID, so recovery on the next launch
 returns stopped-container logs to the original bundle rather than creating a
 second timestamped archive. Agent state, runtime snapshots, and display logs

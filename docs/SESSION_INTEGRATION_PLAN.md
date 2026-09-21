@@ -101,12 +101,14 @@ IDs, and the accepted archive still evaluates successfully offline.
 
 ### S1 — Separate lifecycle policy from the VT mechanism
 
-Status: in progress; the first slice is physically verified. It introduces a
-shared lifecycle module for backend validation, run IDs, container labels,
-bounded readiness waits, owned-process cleanup, atomic session records, and
-evidence recovery. The existing launcher explicitly selects `lab-vt`;
-`gdm-session` is reserved but rejected by that launcher until S2 establishes
-its seat model.
+Status: physically verified. The shared lifecycle layer now owns
+backend validation, run IDs, container labels, bounded readiness, atomic
+session records, and evidence recovery. A separate session-services module owns
+startup, readiness, archival, interruption, and idempotent cleanup for the
+system-bus proxy, telemetry, agent-status collector, and action gateway. The
+display launcher now retains only preflight, GDM/VT handoff, container display
+mechanics, and restoration. `gdm-session` is reserved but rejected by that
+launcher until S2 establishes its seat model.
 
 Physical evidence: run `20260922-073620-56102` loaded the five required shell
 milestones with no fatal marker, Hyprland exited with status `0`, the shell
@@ -125,10 +127,14 @@ it is not a replacement for the earlier full MVP panel/input visual record.
 Gate: the current physical VT workflow behaves identically, and its accepted
 contract passes with the refactored shared orchestration.
 
-Remaining before this gate: move collector/action-gateway ownership and final
-session-record transitions behind the common orchestration boundary, complete
-the failure matrix around those processes, and perform one bundled physical
-regression of the unchanged `lab-vt` backend.
+Final evidence: run `20260922-080145-91129` retained fresh telemetry and agent
+snapshots, a correlated successful Codex refresh, and harmless workload
+`sample-20260922-080228` with exit status `0`. All shell milestones passed,
+Hyprland exited cleanly, the human confirmed the requested panels/actions, and
+GDM was active after normal exit. The service fixtures cover duplicate
+ownership, partial startup timeout, interrupted child cleanup, malformed
+identity, atomic archival, and repeated cleanup. S1 is complete; S2 remains a
+separate read-only investigation.
 
 ### S2 — Prove logind/GDM seat ownership without installing a session
 

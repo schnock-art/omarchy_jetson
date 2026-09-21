@@ -10,6 +10,7 @@ $SCRIPT_DIR/check-syntax.sh \
 $SCRIPT_DIR/start-quattro-lab.sh \
 $SCRIPT_DIR/run-hyprland-drm.sh \
 $SCRIPT_DIR/quattro-session-common.sh \
+$SCRIPT_DIR/quattro-session-services.sh \
 $SCRIPT_DIR/collect-jetson-telemetry.sh \
 $SCRIPT_DIR/collect-jetson-agent-status.sh \
 $SCRIPT_DIR/quattro-health-report.sh \
@@ -17,6 +18,11 @@ $SCRIPT_DIR/quattro-reboot-check.sh \
 $SCRIPT_DIR/quattro-workloads.sh \
 $SCRIPT_DIR/quattro-action-gateway.sh \
 $SCRIPT_DIR/quattro-agent-adapter.sh \
+$ROOT_DIR/tests/session/helpers/setpriv \
+$ROOT_DIR/tests/session/helpers/xdg-dbus-proxy \
+$ROOT_DIR/tests/session/helpers/fixture-system-bus.sh \
+$ROOT_DIR/tests/session/helpers/fixture-json-collector.sh \
+$ROOT_DIR/tests/session/helpers/fixture-action-gateway.sh \
 $ROOT_DIR/tests/runtime-smoke/run-quattro-shell.sh \
 $ROOT_DIR/tests/runtime-smoke/run-layer-panel.sh \
 $ROOT_DIR/tests/runtime-smoke/helpers/busctl \
@@ -45,6 +51,7 @@ PY
 sh -n "$ROOT_DIR/tests/mvp/test-conductor.sh"
 sh -n "$ROOT_DIR/tests/mvp/test-control-plane.sh"
 sh -n "$ROOT_DIR/tests/session/test-session-common.sh"
+sh -n "$ROOT_DIR/tests/session/test-session-services.sh"
 
 for file in \
   "$ROOT_DIR/tests/runtime-smoke/jetson-telemetry/manifest.json" \
