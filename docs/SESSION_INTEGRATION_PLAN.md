@@ -144,7 +144,7 @@ changes are committed as `8ffd128e485ac49440dea5c18a8efcafe960c81b`.
 
 ### S2 — Prove logind/GDM seat ownership without installing a session
 
-Status: blocked on an explicit design decision. The read-only probe is
+Status: ready for an explicitly controlled physical experiment. The read-only probe is
 implemented and retained as `artifacts/session-probes/20260922-083639.json`.
 The logind seat supports the narrow-service container architecture, but
 `/etc/gdm3/custom.conf` explicitly sets `WaylandEnable=false`. No host policy
@@ -164,10 +164,12 @@ Gate: a non-destructive probe establishes one viable architecture with exact
 permissions and a documented recovery path. No production session entry is
 installed yet.
 
-The conditional architecture and exact permissions are now documented. The
-gate cannot be marked complete until the maintainer explicitly decides whether
-to design a reversible GDM Wayland feasibility experiment; keeping the current
-`lab-vt` workflow is the safe default.
+The conditional architecture and exact permissions are documented. The
+maintainer approved the reversible experiment design, and prepared experiment
+`20260922-090045` changes only `WaylandEnable`. S2 remains incomplete until the
+experiment is executed, both Ubuntu session types pass, and the original GDM
+configuration is restored. See
+[GDM_WAYLAND_EXPERIMENT.md](GDM_WAYLAND_EXPERIMENT.md).
 
 ### S3 — Implement a narrow session service and wrapper
 

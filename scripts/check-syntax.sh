@@ -41,7 +41,11 @@ for file in $shell_files; do
   esac
 done
 
-python3 - "$ROOT_DIR/scripts/quattro-mvp.py" "$ROOT_DIR/scripts/quattro-session-probe.py" "$ROOT_DIR/tests/session/test-session-probe.py" <<'PY'
+python3 - "$ROOT_DIR/scripts/quattro-mvp.py" \
+  "$ROOT_DIR/scripts/quattro-session-probe.py" \
+  "$ROOT_DIR/scripts/quattro-gdm-wayland-experiment.py" \
+  "$ROOT_DIR/tests/session/test-session-probe.py" \
+  "$ROOT_DIR/tests/session/test-gdm-wayland-experiment.py" <<'PY'
 import ast
 import pathlib
 import sys

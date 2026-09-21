@@ -6,10 +6,12 @@ The read-only S2 probe establishes a conditional architecture but identifies one
 host-policy blocker: this Jetson has `WaylandEnable=false` in
 `/etc/gdm3/custom.conf`.
 
-Do not install a Quattro session entry or begin the privileged S3 service until
-the maintainer explicitly chooses whether to run a reversible GDM Wayland
-feasibility experiment. No GDM, login, device, NVIDIA, or session configuration
-was changed during this investigation.
+The maintainer approved designing a reversible GDM Wayland feasibility
+experiment. The conductor and prepared bundle are documented in
+[GDM_WAYLAND_EXPERIMENT.md](GDM_WAYLAND_EXPERIMENT.md). Preparation changed no
+GDM, login, device, NVIDIA, or session configuration. Do not install a Quattro
+session entry or begin the privileged S3 service until that experiment is run,
+rolled back, and accepted.
 
 ## Reproducing the probe
 
@@ -88,10 +90,10 @@ removing the GDM Wayland policy blocker.
 
 ## Required explicit decision
 
-The safest current option is to keep the physically verified `lab-vt` launcher.
-To continue toward a selectable GDM session, the maintainer must separately
-authorize a **temporary, reversible GDM Wayland feasibility experiment**. That
-experiment must be designed before execution and include:
+The safest current option remains the physically verified `lab-vt` launcher.
+The maintainer authorized design—but not implicit execution—of a **temporary,
+reversible GDM Wayland feasibility experiment**. The prepared experiment
+includes:
 
 1. an exact backup and checksum of `/etc/gdm3/custom.conf`;
 2. an SSH recovery connection and tested command to restore the file and GDM;
@@ -102,6 +104,6 @@ experiment must be designed before execution and include:
 7. immediate rollback if GDM, NVIDIA graphics, CUDA, or the normal desktop
    regresses.
 
-Even after authorization, the first task is to write and review that experiment
-and rollback tooling. It is not permission to install Quattro as the default or
-to bypass the physical validation gates.
+The design and rollback tooling are ready as experiment `20260922-090045`.
+Running its explicit apply/restart commands is the next physical gate. This is
+not permission to install Quattro as the default or bypass later validation.
