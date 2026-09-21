@@ -20,8 +20,9 @@ service starts the two fixed containers with the assigned seat devices. The
 wrapper does not receive Docker access, and the service does not accept caller
 commands, image names, paths, mounts, or device arguments.
 
-That architecture is currently blocked because GDM Wayland is explicitly
-disabled on this Jetson. Do not implement the service or install a session entry
-until the reversible experiment in
-[SESSION_INTEGRATION_DECISION.md](SESSION_INTEGRATION_DECISION.md) is explicitly
-approved and passes. The physical `lab-vt` backend remains the recovery path.
+The reversible GDM experiment passed and restored the original host policy, so
+the S3 service may now be implemented and fixture-tested. Its versioned
+fixed-operation contract, peer authorization, and state machine are documented
+in [GDM_SESSION_SERVICE.md](GDM_SESSION_SERVICE.md). Do not install the service
+or a GDM session entry until the fixed runtime adapter and S3 security gate
+pass. The physical `lab-vt` backend remains the recovery path.

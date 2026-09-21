@@ -172,10 +172,15 @@ met. See [GDM_WAYLAND_EXPERIMENT.md](GDM_WAYLAND_EXPERIMENT.md).
 
 ### S3 — Implement a narrow session service and wrapper
 
-Status: ready to implement. S2 selected the containerized presentation plane
-with a narrow root-owned host service and completed the required reversible
-feasibility experiment. S3 must remain fixture-only until its security and
-state-transition gates pass; it does not install a GDM session entry.
+Status: implementation in progress. S2 selected the containerized presentation
+plane with a narrow root-owned host service and completed the required
+reversible feasibility experiment. The first S3 slice implements the versioned
+fixed-operation contract, peer/logind authorization, atomic state machine,
+idempotency, recovery rules, and unprivileged client. Its runtime adapter
+remains deliberately fail-closed pending the fixed container/evidence slice.
+See [GDM_SESSION_SERVICE.md](GDM_SESSION_SERVICE.md). S3 remains fixture-only
+until its security and state-transition gates pass; it does not install a GDM
+session entry.
 
 - Add an unprivileged wrapper that validates its GDM/logind session and creates
   one run ID.

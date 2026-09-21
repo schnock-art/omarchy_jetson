@@ -44,8 +44,11 @@ done
 python3 - "$ROOT_DIR/scripts/quattro-mvp.py" \
   "$ROOT_DIR/scripts/quattro-session-probe.py" \
   "$ROOT_DIR/scripts/quattro-gdm-wayland-experiment.py" \
+  "$ROOT_DIR/scripts/quattro-gdm-session-service.py" \
+  "$ROOT_DIR/scripts/quattro-gdm-session-wrapper.py" \
   "$ROOT_DIR/tests/session/test-session-probe.py" \
-  "$ROOT_DIR/tests/session/test-gdm-wayland-experiment.py" <<'PY'
+  "$ROOT_DIR/tests/session/test-gdm-wayland-experiment.py" \
+  "$ROOT_DIR/tests/session/test-gdm-session-control.py" <<'PY'
 import ast
 import pathlib
 import sys

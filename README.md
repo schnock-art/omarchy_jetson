@@ -47,6 +47,7 @@ expanding the accepted MVP claim or weakening the normal Ubuntu recovery path.
 - [Selectable GDM session plan](docs/SESSION_INTEGRATION_PLAN.md)
 - [GDM/logind feasibility decision](docs/SESSION_INTEGRATION_DECISION.md)
 - [Reversible GDM Wayland experiment](docs/GDM_WAYLAND_EXPERIMENT.md)
+- [Narrow GDM session service](docs/GDM_SESSION_SERVICE.md)
 
 ## Status
 
