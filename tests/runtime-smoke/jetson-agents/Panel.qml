@@ -13,7 +13,10 @@ Panel {
   implicitHeight: button.implicitHeight
   property var status: ({})
   property var actionStatus: ({})
+  property var mvpStatus: ({})
   property bool confirmRefresh: false
+  property bool confirmMvp: false
+  property string pendingRequestId: ""
   readonly property var codex: root.status.codex || ({})
 
   function refresh() { if (!statusProc.running) statusProc.running = true }
@@ -42,12 +45,25 @@ Panel {
     catch (error) { console.warn("Agent status parse failed:", error) }
   }
   function updateActionStatus(raw) {
-    try { actionStatus = JSON.parse(raw) }
+    try {
+      var parsed = JSON.parse(raw)
+      if (parsed.action === "ready" || parsed.action === "refresh-codex-status-v1" || parsed.action === "run-mvp-acceptance-v1") actionStatus = parsed
+    }
     catch (error) { console.warn("Agent action status parse failed:", error) }
   }
+  function updateMvpStatus(raw) {
+    try { mvpStatus = JSON.parse(raw) }
+    catch (error) { console.warn("MVP agent status parse failed:", error) }
+  }
   function refreshCodexUsage() {
+    pendingRequestId = "codex-" + Date.now()
     if (!refreshProc.running) refreshProc.running = true
     confirmRefresh = false
+  }
+  function runMvpAcceptance() {
+    pendingRequestId = "mvp-" + Date.now()
+    if (!mvpProc.running) mvpProc.running = true
+    confirmMvp = false
   }
 
   IpcHandler {
@@ -71,10 +87,19 @@ Panel {
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateActionStatus(text) }
   }
   Process {
-    id: refreshProc
-    command: ["sh", "-c", "printf '%s\\n' refresh-codex-status-v1 > /tmp/jetson-actions/action-request"]
+    id: mvpStatusProc
+    command: ["cat", "/tmp/jetson-actions/mvp-status.json"]
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateMvpStatus(text) }
   }
-  Timer { interval: 5000; running: true; repeat: true; triggeredOnStart: true; onTriggered: { root.refresh(); if (!actionStatusProc.running) actionStatusProc.running = true } }
+  Process {
+    id: refreshProc
+    command: ["sh", "-c", "printf '%s\\n' '{\"schemaVersion\":1,\"requestId\":\"" + root.pendingRequestId + "\",\"action\":\"refresh-codex-status-v1\"}' > /tmp/jetson-actions/action-request"]
+  }
+  Process {
+    id: mvpProc
+    command: ["sh", "-c", "printf '%s\\n' '{\"schemaVersion\":1,\"requestId\":\"" + root.pendingRequestId + "\",\"action\":\"run-mvp-acceptance-v1\"}' > /tmp/jetson-actions/action-request"]
+  }
+  Timer { interval: 5000; running: true; repeat: true; triggeredOnStart: true; onTriggered: { root.refresh(); if (!actionStatusProc.running) actionStatusProc.running = true; if (!mvpStatusProc.running) mvpStatusProc.running = true } }
 
   BarIconButton {
     id: button
@@ -124,9 +149,20 @@ Panel {
         MouseArea { anchors.fill: parent; onClicked: { if (root.confirmRefresh) root.refreshCodexUsage(); else root.confirmRefresh = true } }
       }
       Text { visible: root.confirmRefresh; width: parent.width; text: "This refreshes the existing read-only Codex usage snapshot. It does not launch an agent or expose credentials."; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.65; font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption }
+      Rectangle {
+        width: parent.width
+        height: Style.space(34)
+        color: root.confirmMvp ? "#8a5a22" : "#3d4859"
+        radius: Style.space(4)
+        Text { anchors.centerIn: parent; text: root.confirmMvp ? "Confirm: run MVP agent" : "Run MVP acceptance…"; color: root.bar.foreground; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
+        MouseArea { anchors.fill: parent; onClicked: { if (root.confirmMvp) root.runMvpAcceptance(); else root.confirmMvp = true } }
+      }
+      Text { visible: root.confirmMvp; width: parent.width; text: "This approves a host-side agent for the current run. Exit Quattro normally after it shows waiting; Codex starts after the complete archive exists."; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.65; font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption }
+      InfoPair { label: "MVP agent"; value: root.mvpStatus.state || "not-started" }
+      Text { visible: !!root.mvpStatus.message; width: parent.width; text: root.mvpStatus.message; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.75; font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption }
       Text { visible: !!root.actionStatus.message; width: parent.width; text: root.actionStatus.message; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.75; font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption }
       Text { visible: !!root.codex.usageStatusText; width: parent.width; text: root.codex.usageStatusText; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.75; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
-      Text { width: parent.width; text: "Read-only bridge. Provider credentials and launching remain deferred."; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.65; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
+      Text { width: parent.width; text: "Provider credentials and general provider launching remain deferred. MVP acceptance runs through the host adapter."; wrapMode: Text.WordWrap; color: root.bar.foreground; opacity: 0.65; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
     }
   }
 

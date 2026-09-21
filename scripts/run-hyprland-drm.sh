@@ -9,6 +9,9 @@ QUATTRO=0
 ACTIVE_TTY=
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 TEST_CONFIG="$SCRIPT_DIR/../tests/runtime-smoke/hyprland.conf"
+RUN_ID=${QUATTRO_RUN_ID:-$(date +%Y%m%d-%H%M%S)}
+SESSION_ARCHIVE_DIR="$SCRIPT_DIR/../artifacts/quattro-runs/$RUN_ID"
+case "$RUN_ID" in *[!A-Za-z0-9_-]*|'') echo "Invalid Quattro run ID: $RUN_ID" >&2; exit 2 ;; esac
 "$SCRIPT_DIR/check-syntax.sh"
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -42,12 +45,16 @@ case "$(id -u)" in
     [ "$CHECK_ONLY" -eq 0 ] || set -- "$@" --check
     [ "$PANEL" -eq 0 ] || set -- "$@" --panel
     [ "$QUATTRO" -eq 0 ] || set -- "$@" --quattro
-    exec sudo -- "$(readlink -f "$0")" "$@" ;;
+    # sudo normally drops caller-provided environment variables. Pass the
+    # validated ID explicitly so preflight, runtime services, and archival all
+    # refer to one evidence bundle across the privilege transition.
+    exec sudo -- env QUATTRO_RUN_ID="$RUN_ID" "$(readlink -f "$0")" "$@" ;;
 esac
 
 HOST_USER=looco
 HOST_UID=$(id -u "$HOST_USER")
 HOST_GID=$(id -g "$HOST_USER")
+HOST_AGENT_PATH="/home/$HOST_USER/omarchy/bin:/usr/lib/chatgpt/resources:$PATH"
 INPUT_GID=$(getent group input | cut -d: -f3)
 VIDEO_GID=$(getent group video | cut -d: -f3)
 RENDER_GID=$(getent group render | cut -d: -f3)
@@ -126,6 +133,31 @@ SYSTEM_PROXY_PID=
 TELEMETRY_PID=
 AGENT_STATUS_PID=
 ACTION_GATEWAY_PID=
+archive_file() {
+  source=$1
+  target=$2
+  [ -f "$source" ] || return 0
+  cp -f "$source" "$SESSION_ARCHIVE_DIR/$target"
+}
+archive_runtime_evidence() {
+  [ "$QUATTRO" -eq 1 ] || return 0
+  mkdir -p "$SESSION_ARCHIVE_DIR"
+  archive_file "$AGENT_STATUS_DIR/status.json" agent-status.json
+  archive_file "$TELEMETRY_DIR/telemetry.json" telemetry.json
+  archive_file "$ACTION_GATEWAY_DIR/action-status.json" action-status.json
+  archive_file "$ACTION_GATEWAY_DIR/mvp-status.json" mvp-status.json
+  archive_file "$ACTION_GATEWAY_DIR/gateway.log" action-gateway.log
+  archive_file "$ACTION_GATEWAY_DIR/launcher.log" action-launcher.log
+  archive_file "$WORKLOAD_DIR/registry.json" workload-registry.json
+  if docker container inspect quickshell-quattro-smoke >/dev/null 2>&1; then
+    docker logs quickshell-quattro-smoke >"$SESSION_ARCHIVE_DIR/quickshell-quattro-smoke.log" 2>&1 || true
+    docker inspect quickshell-quattro-smoke >"$SESSION_ARCHIVE_DIR/quickshell-quattro-smoke.inspect.json" || true
+  fi
+  if docker container inspect hyprland-phase2-drm >/dev/null 2>&1; then
+    docker logs hyprland-phase2-drm >"$SESSION_ARCHIVE_DIR/hyprland-phase2-drm.log" 2>&1 || true
+    docker inspect hyprland-phase2-drm >"$SESSION_ARCHIVE_DIR/hyprland-phase2-drm.inspect.json" || true
+  fi
+}
 stop_system_proxy() {
   if [ -n "$SYSTEM_PROXY_PID" ]; then
     kill "$SYSTEM_PROXY_PID" 2>/dev/null || true
@@ -162,6 +194,8 @@ cleanup_preflight() {
 }
 trap cleanup_preflight EXIT
 if [ "$QUATTRO" -eq 1 ]; then
+  "$SCRIPT_DIR/quattro-mvp.py" finalize --run-id "$RUN_ID" >/dev/null
+  chown -R "$HOST_UID:$HOST_GID" "$SESSION_ARCHIVE_DIR"
   command -v xdg-dbus-proxy >/dev/null
   command -v setpriv >/dev/null
   SYSTEM_PROXY_DIR=$(mktemp -d /tmp/jetson-system-bus.XXXXXX)
@@ -208,7 +242,7 @@ if [ "$QUATTRO" -eq 1 ]; then
   # sudo leaves HOME pointing at root. Codex local session discovery belongs to
   # the desktop user, so make that identity explicit before dropping privileges.
   setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --init-groups \
-    env HOME="/home/$HOST_USER" XDG_STATE_HOME="/home/$HOST_USER/.local/state" \
+    env HOME="/home/$HOST_USER" XDG_STATE_HOME="/home/$HOST_USER/.local/state" PATH="$HOST_AGENT_PATH" \
     "$SCRIPT_DIR/collect-jetson-agent-status.sh" "$AGENT_STATUS_DIR/status.json" \
     >"$AGENT_STATUS_DIR/collector.log" 2>&1 &
   AGENT_STATUS_PID=$!
@@ -225,8 +259,8 @@ if [ "$QUATTRO" -eq 1 ]; then
   chown "$HOST_UID:$HOST_GID" "$ACTION_GATEWAY_DIR"
   chmod 0700 "$ACTION_GATEWAY_DIR"
   setpriv --reuid="$HOST_UID" --regid="$HOST_GID" --init-groups \
-    env HOME="/home/$HOST_USER" XDG_STATE_HOME="/home/$HOST_USER/.local/state" \
-    "$SCRIPT_DIR/quattro-action-gateway.sh" "$ACTION_GATEWAY_DIR" "$AGENT_STATUS_DIR/status.json" \
+    env HOME="/home/$HOST_USER" XDG_STATE_HOME="/home/$HOST_USER/.local/state" PATH="$HOST_AGENT_PATH" \
+    "$SCRIPT_DIR/quattro-action-gateway.sh" "$ACTION_GATEWAY_DIR" "$AGENT_STATUS_DIR/status.json" "$RUN_ID" \
     >"$ACTION_GATEWAY_DIR/launcher.log" 2>&1 &
   ACTION_GATEWAY_PID=$!
   sleep 1
@@ -264,8 +298,25 @@ cleanup() {
   stop_telemetry
   stop_agent_status
   stop_system_proxy
+  if [ "$QUATTRO" -eq 1 ]; then
+    archive_runtime_evidence
+    jq -cn --arg runId "$RUN_ID" --arg state restoring-gdm --arg revision "$(git -C "$SCRIPT_DIR/.." rev-parse HEAD 2>/dev/null || echo unavailable)" \
+      '{schemaVersion:1,runId:$runId,state:$state,revision:$revision,stateChangedAt:(now|todateiso8601)}' \
+      >"$SESSION_ARCHIVE_DIR/session.json.tmp"
+    mv "$SESSION_ARCHIVE_DIR/session.json.tmp" "$SESSION_ARCHIVE_DIR/session.json"
+    cp -f "$SCRIPT_DIR/../mvp/acceptance.json" "$SESSION_ARCHIVE_DIR/acceptance-manifest.json"
+  fi
   if [ "$RESTORE_GDM" -eq 1 ]; then
     systemctl start gdm3 || true
+  fi
+  if [ "$QUATTRO" -eq 1 ]; then
+    final_state=awaiting-visual-check
+    [ "$result" -eq 0 ] || final_state=failed
+    jq -cn --arg runId "$RUN_ID" --arg state "$final_state" --arg revision "$(git -C "$SCRIPT_DIR/.." rev-parse HEAD 2>/dev/null || echo unavailable)" --argjson exitCode "$result" \
+      '{schemaVersion:1,runId:$runId,state:$state,revision:$revision,exitCode:$exitCode,stateChangedAt:(now|todateiso8601)}' \
+      >"$SESSION_ARCHIVE_DIR/session.json.tmp"
+    mv "$SESSION_ARCHIVE_DIR/session.json.tmp" "$SESSION_ARCHIVE_DIR/session.json"
+    chown -R "$HOST_UID:$HOST_GID" "$SESSION_ARCHIVE_DIR"
   fi
   echo "Test ended (status $result). Container logs retained: sudo docker logs hyprland-phase2-drm"
   exit "$result"
@@ -333,6 +384,7 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   fi
   # shellcheck disable=SC2086
   docker run -d --name "$QS_CONTAINER" \
+    --label "dev.omarchy-quattro.run-id=$RUN_ID" \
     --network none --runtime=nvidia --gpus all --device=/dev/dri \
     --user "$HOST_UID:$HOST_GID" \
     --group-add "$VIDEO_GID" --group-add "$RENDER_GID" \
@@ -351,6 +403,7 @@ fi
 docker run -it \
   "$@" \
   --name hyprland-phase2-drm \
+  --label "dev.omarchy-quattro.run-id=$RUN_ID" \
   --network none \
   --runtime=nvidia \
   --gpus all \

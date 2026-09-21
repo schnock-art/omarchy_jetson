@@ -11,15 +11,21 @@ REPORT_FILE="$REPORT_DIR/$(date +%Y%m%d-%H%M%S)-health.txt"
 # Keep the live terminal output and save an exact copy for later inspection.
 exec > >(tee "$REPORT_FILE")
 REQUIRE_RUN=0
+MODE=latest
+RUN_ID=
 
 usage() {
-  echo "Usage: $0 [--require-run]" >&2
+  echo "Usage: $0 [--host|--live|--latest|--run RUN_ID] [--require-run]" >&2
   exit 2
 }
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --require-run) REQUIRE_RUN=1; shift ;;
+    --host) MODE=host; shift ;;
+    --live) MODE=live; shift ;;
+    --latest) MODE=latest; shift ;;
+    --run) [ "$#" -ge 2 ] || usage; MODE=run; RUN_ID=$2; shift 2 ;;
     *) usage ;;
   esac
 done
@@ -120,45 +126,67 @@ if [ "$DOCKER_OK" -eq 1 ]; then
     fail 'One or more required lab images are missing'
   fi
 
-  QS_STATE=$(container_state quickshell-quattro-smoke)
-  HYPR_STATE=$(container_state hyprland-phase2-drm)
-  if [ -n "$QS_STATE" ] || [ -n "$HYPR_STATE" ]; then
-    printf '\nCurrent run\n'
-    note "quickshell-quattro-smoke: ${QS_STATE:-absent}"
-    note "hyprland-phase2-drm:    ${HYPR_STATE:-absent}"
-  else
-    warn 'No current Quattro containers are present'
-  fi
+  if [ "$MODE" = live ]; then
+    QS_STATE=$(container_state quickshell-quattro-smoke)
+    HYPR_STATE=$(container_state hyprland-phase2-drm)
+    if [ -n "$QS_STATE" ] || [ -n "$HYPR_STATE" ]; then
+      printf '\nCurrent run\n'
+      note "quickshell-quattro-smoke: ${QS_STATE:-absent}"
+      note "hyprland-phase2-drm:    ${HYPR_STATE:-absent}"
+    else
+      warn 'No current Quattro containers are present'
+    fi
 
-  if [ "$QS_STATE" = running ]; then
-    QS_LOG=$(container_logs quickshell-quattro-smoke)
-  elif [ -n "$QS_STATE" ]; then
-    QS_LOG=$(container_logs quickshell-quattro-smoke)
-  fi
-  if [ "$HYPR_STATE" = running ] || [ -n "$HYPR_STATE" ]; then
-    HYPR_LOG=$(container_logs hyprland-phase2-drm)
+    if [ -n "$QS_STATE" ]; then QS_LOG=$(container_logs quickshell-quattro-smoke); fi
+    if [ -n "$HYPR_STATE" ]; then HYPR_LOG=$(container_logs hyprland-phase2-drm); fi
   fi
 fi
 
-ARCHIVE_LOG=$(latest_archive)
+ARCHIVE_LOG=
+ARCHIVE_RUN_DIR=
+if [ "$MODE" = run ]; then
+  case "$RUN_ID" in
+    *[!A-Za-z0-9_-]*|'') fail 'Invalid run ID' ;;
+    *)
+      if [ -d "$ARCHIVE_DIR/$RUN_ID" ]; then
+        ARCHIVE_RUN_DIR="$ARCHIVE_DIR/$RUN_ID"
+        ARCHIVE_LOG="$ARCHIVE_RUN_DIR/quickshell-quattro-smoke.log"
+        [ -f "$ARCHIVE_LOG" ] || ARCHIVE_LOG=
+      fi
+      ;;
+  esac
+elif [ "$MODE" = latest ]; then
+  ARCHIVE_LOG=$(latest_archive)
+fi
+if [ "$MODE" = host ]; then
+  ARCHIVE_LOG=
+fi
 if [ -n "$ARCHIVE_LOG" ]; then
   ARCHIVE_RUN_DIR=$(dirname "$ARCHIVE_LOG")
   pass 'A retained Quattro run archive is available'
   note "$ARCHIVE_LOG"
-elif [ "$REQUIRE_RUN" -eq 1 ]; then
-  fail 'No retained Quattro run archive was found'
-else
+elif [ "$MODE" = run ] && [ -n "$ARCHIVE_RUN_DIR" ]; then
+  fail "Selected run archive is incomplete: $ARCHIVE_RUN_DIR"
+  note 'Missing quickshell-quattro-smoke.log'
+elif [ "$REQUIRE_RUN" -eq 1 ] && [ "$MODE" != host ]; then
+  if [ "$MODE" = live ]; then
+    fail 'No active Quattro containers were found'
+  else
+    fail 'No retained Quattro run archive was found'
+  fi
+elif [ "$MODE" != host ]; then
   warn 'No retained Quattro run archive was found yet'
 fi
 
-if [ "$DOCKER_OK" -eq 1 ] && [ -n "$QS_STATE" ]; then
+if [ "$MODE" != live ] && [ -n "${ARCHIVE_RUN_DIR:-}" ] && [ -f "$ARCHIVE_RUN_DIR/agent-status.json" ]; then
+  AGENT_STATUS_FILE="$ARCHIVE_RUN_DIR/agent-status.json"
+elif [ "$DOCKER_OK" -eq 1 ] && [ -n "$QS_STATE" ]; then
   AGENT_STATUS_DIR=$(docker_cmd inspect -f '{{range .Mounts}}{{if eq .Destination "/tmp/jetson-agent-status"}}{{.Source}}{{end}}{{end}}' quickshell-quattro-smoke 2>/dev/null || true)
-elif [ -n "${ARCHIVE_RUN_DIR:-}" ] && [ -f "$ARCHIVE_RUN_DIR/quickshell-quattro-smoke.inspect.json" ]; then
+  if [ -n "$AGENT_STATUS_DIR" ]; then AGENT_STATUS_FILE="$AGENT_STATUS_DIR/status.json"; fi
+elif [ "$MODE" != live ] && [ -n "${ARCHIVE_RUN_DIR:-}" ] && [ -f "$ARCHIVE_RUN_DIR/quickshell-quattro-smoke.inspect.json" ]; then
   AGENT_STATUS_DIR=$(agent_status_from_inspect "$ARCHIVE_RUN_DIR/quickshell-quattro-smoke.inspect.json" 2>/dev/null || true)
-else
-  AGENT_STATUS_DIR=
+  if [ -n "$AGENT_STATUS_DIR" ] && [ -f "$AGENT_STATUS_DIR/status.json" ]; then AGENT_STATUS_FILE="$AGENT_STATUS_DIR/status.json"; fi
 fi
-if [ -n "$AGENT_STATUS_DIR" ]; then AGENT_STATUS_FILE="$AGENT_STATUS_DIR/status.json"; fi
 
 printf '\nAgent bridge\n'
 if [ -f "$AGENT_STATUS_FILE" ] && jq -e . "$AGENT_STATUS_FILE" >/dev/null 2>&1; then

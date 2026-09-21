@@ -1,14 +1,26 @@
 # Omarchy Quattro on Jetson AGX Orin
 
-Phase 0 reconnaissance for adapting the Omarchy Quattro desktop/agent experience to an NVIDIA Jetson AGX Orin Developer Kit.
+A reversible Ubuntu/JetPack adaptation of the Omarchy Quattro desktop and
+agent experience for an NVIDIA Jetson AGX Orin Developer Kit.
 
-This repository is research and planning only. It must not install packages, modify boot or kernel configuration, replace NVIDIA components, or run an Omarchy installer.
+The project has progressed from reconnaissance to an accepted physical MVP.
+Run `20260922-063507-9503` passed the full archived acceptance contract:
+Hyprland and the real Quattro shell rendered on the Jetson, required panels and
+input were observed by the human operator, normal exit restored GDM, the
+detached Codex agent completed the non-visual checks, and the offline evaluator
+recorded no failed checks. Current work is the M6 reproducibility and handoff
+baseline rather than additional component experiments.
 
 ## Current position
 
-The preferred direction is a user-space Ubuntu adaptation: preserve Ubuntu/L4T/JetPack/CUDA/TensorRT and investigate Quattro’s reusable shell and agent interfaces independently. A full Arch replacement is not justified by current evidence.
+The preferred architecture remains a user-space Ubuntu adaptation that
+preserves L4T, JetPack, CUDA, TensorRT, and the NVIDIA graphics stack. Quattro
+runs as an explicit, disposable lab session; GDM remains the normal desktop.
 
-The largest uncertainty is not ARM64 itself; it is whether a usable Hyprland/Wayland session can run on the Jetson Tegra graphics stack without disturbing the working desktop.
+The MVP orchestration loop is implemented and physically accepted. The
+remaining delivery gap is to commit or otherwise identify the exact known-good
+source state, document schema compatibility, and complete the maintenance
+handoff without expanding the accepted feature scope.
 
 ## Documents
 
@@ -24,8 +36,77 @@ The largest uncertainty is not ARM64 itself; it is whether a usable Hyprland/Way
 - [Phase 1 plan](docs/PHASE_1_PLAN.md)
 - [Phase 3 stability plan](docs/PHASE_3_PLAN.md)
 - [Phase 4 lab capabilities plan](docs/PHASE_4_PLAN.md)
+- [MVP implementation plan](docs/MVP_IMPLEMENTATION_PLAN.md)
 - [Quattro lab startup](docs/STARTUP_WORKFLOW.md)
+- [MVP maintenance baseline](docs/MVP_MAINTENANCE.md)
+- [Selectable GDM session plan](docs/SESSION_INTEGRATION_PLAN.md)
 
 ## Status
 
-Phase 1 preflight is recorded in [docs/PHASE_1_RESULTS.md](docs/PHASE_1_RESULTS.md). The isolated build is prepared but currently blocked by Docker access from the managed session; no host changes were made.
+The current baseline has physically verified Quattro rendering, input, audio,
+notifications, filtered connectivity visibility, Jetson power and telemetry,
+Codex usage visibility, a workload registry, GDM restoration, and reboot
+resilience. See [docs/LAB_VISIBILITY.md](docs/LAB_VISIBILITY.md) for retained
+results.
+
+The delivery sequence and exact MVP gates are defined in
+[docs/MVP_IMPLEMENTATION_PLAN.md](docs/MVP_IMPLEMENTATION_PLAN.md). New panels
+and providers are intentionally frozen until the end-to-end MVP gate passes.
+
+Before any physical display test, run:
+
+```sh
+./scripts/check-syntax.sh
+```
+
+Start the lab only from the Jetson's physical text console using the workflow
+in [docs/STARTUP_WORKFLOW.md](docs/STARTUP_WORKFLOW.md). The repository must not
+install generic NVIDIA drivers, alter the kernel/firmware/JetPack stack, replace
+GDM, introduce Arch package management, or run an Omarchy installer.
+
+For MVP orchestration, the safe non-display checks are:
+
+```sh
+./scripts/quattro-mvp.py preflight
+./scripts/quattro-health-report.sh --host
+./scripts/quattro-health-report.sh --latest
+./scripts/quattro-mvp.py status --run-id RUN_ID
+./scripts/quattro-mvp.py evaluate --run-id RUN_ID
+# Add --write-result only when intentionally recording the evaluation artifact.
+```
+
+The host-side agent adapter requires an explicit approval flag and a specific
+archived run. It may inspect and repair this repository, but it cannot perform
+the physical VT handoff:
+
+```sh
+./scripts/quattro-agent-adapter.sh --run-id RUN_ID --approve
+```
+
+During a physical session, the Agents panel keeps MVP-agent state separate from
+usage-refresh feedback. After approval it reports `waiting`; exit Quattro
+normally and the detached adapter starts Codex only after the full archive is
+written and GDM is restored. Follow `agent-run.json` over SSH for the terminal
+`completed`, `waiting-for-human`, or `failed` result. The run ID is preserved
+through `sudo`, and labelled stopped containers are recovered into that same
+evidence bundle on the next launch.
+
+Use the physical start command and the bundled visual checklist before marking
+an archived run complete. See [docs/MVP_IMPLEMENTATION_PLAN.md](docs/MVP_IMPLEMENTATION_PLAN.md)
+for the full sequence and artifact contract.
+
+## From lab workflow to normal login
+
+The next delivery target is an **explicitly selectable**
+`Quattro (Jetson preview)` session at GDM, not boot-time or automatic Quattro.
+The current launcher cannot safely be placed behind a GDM desktop entry because
+it stops GDM, switches VTs, and performs privileged container setup. The staged
+design separates common orchestration from the physical-VT mechanism, proves
+GDM/logind seat permissions, introduces only a fixed allowlisted session
+service if needed, and then adds a reversible session entry. See
+[docs/SESSION_INTEGRATION_PLAN.md](docs/SESSION_INTEGRATION_PLAN.md).
+
+Until that plan reaches its physical acceptance gate, the only supported start
+path remains `./scripts/start-quattro-lab.sh` from a local text console. Making
+Quattro the preferred session, enabling automatic login, or starting it at boot
+remains an explicit future safety decision rather than part of this plan.

@@ -13,6 +13,12 @@ OUT_DIR=$(dirname "$OUT_FILE")
 mkdir -p "$OUT_DIR"
 usage_dir=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage
 omarchy_bin=${OMARCHY_PATH:-/home/looco/omarchy}/bin
+# Codex Desktop bundles its CLI outside the login-shell PATH on this Jetson.
+# Keep discovery host-side; only the sanitized collector result enters Docker.
+if ! command -v codex >/dev/null 2>&1 && [ -x /usr/lib/chatgpt/resources/codex ]; then
+  PATH="/usr/lib/chatgpt/resources:$PATH"
+  export PATH
+fi
 
 collect() {
   records=0

@@ -14,6 +14,7 @@ Panel {
   property var jobs: []
   property var actionStatus: ({})
   property bool confirmSample: false
+  property string pendingRequestId: ""
 
   function refresh() { if (!registryProc.running) registryProc.running = true }
   function updateRegistry(raw) {
@@ -21,11 +22,15 @@ Panel {
     catch (error) { console.warn("Workload registry parse failed:", error) }
   }
   function submitHarmlessSample() {
+    pendingRequestId = "sample-" + Date.now()
     if (!requestProc.running) requestProc.running = true
     confirmSample = false
   }
   function updateActionStatus(raw) {
-    try { actionStatus = JSON.parse(raw) }
+    try {
+      var parsed = JSON.parse(raw)
+      if (parsed.action === "ready" || parsed.action === "submit-harmless-sample-v1") actionStatus = parsed
+    }
     catch (error) { console.warn("Workload action status parse failed:", error) }
   }
 
@@ -50,7 +55,7 @@ Panel {
   }
   Process {
     id: requestProc
-    command: ["sh", "-c", "printf '%s\\n' submit-harmless-sample-v1 > /tmp/jetson-actions/action-request"]
+    command: ["sh", "-c", "printf '%s\\n' '{\"schemaVersion\":1,\"requestId\":\"" + root.pendingRequestId + "\",\"action\":\"submit-harmless-sample-v1\"}' > /tmp/jetson-actions/action-request"]
   }
   onOpenedChanged: if (opened) refresh()
   Timer { interval: 3000; running: root.opened; repeat: true; onTriggered: { root.refresh(); if (!actionStatusProc.running) actionStatusProc.running = true } }

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "requiredMilestones": [
+    "Configuration Loaded",
+    "Hyprland event socket connected",
+    "Connection established",
+    "Registered notification server with dbus.",
+    "JETSON_POWER_PANEL_LOADED"
+  ],
+  "fatalPatterns": [
+    "service plugin load failed",
+    "Failed to load configuration",
+    "ERROR:"
+  ],
+  "scenarios": [
+    "agent-status-record",
+    "telemetry-record",
+    "workload-registry",
+    "action-result",
+    "mvp-agent-status"
+  ],
+  "visualAssertions": [
+    "Quattro bar is visible",
+    "Agents, telemetry, workloads, and power panels open",
+    "Keyboard and mouse input work",
+    "Super+Shift+E returns to GDM"
+  ],
+  "timeouts": {
+    "readySeconds": 60,
+    "agentSeconds": 1800,
+    "actionSeconds": 60
+  },
+  "requiredArtifacts": [
+    "session.json",
+    "acceptance-manifest.json",
+    "quickshell-quattro-smoke.log",
+    "hyprland-phase2-drm.log",
+    "agent-status.json",
+    "agent-run.json",
+    "telemetry.json",
+    "workload-registry.json",
+    "action-status.json",
+    "mvp-status.json"
+  ]
+}
