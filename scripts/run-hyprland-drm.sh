@@ -9,9 +9,16 @@ QUATTRO=0
 ACTIVE_TTY=
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 TEST_CONFIG="$SCRIPT_DIR/../tests/runtime-smoke/hyprland.conf"
-RUN_ID=${QUATTRO_RUN_ID:-$(date +%Y%m%d-%H%M%S)}
+. "$SCRIPT_DIR/quattro-session-common.sh"
+SESSION_BACKEND=${QUATTRO_SESSION_BACKEND:-lab-vt}
+quattro_require_backend "$SESSION_BACKEND" lab-vt
+RUN_ID=${QUATTRO_RUN_ID:-$(quattro_new_run_id)}
 SESSION_ARCHIVE_DIR="$SCRIPT_DIR/../artifacts/quattro-runs/$RUN_ID"
-case "$RUN_ID" in *[!A-Za-z0-9_-]*|'') echo "Invalid Quattro run ID: $RUN_ID" >&2; exit 2 ;; esac
+quattro_validate_run_id "$RUN_ID"
+CONTAINER_RUN_LABEL=$(quattro_container_label "$RUN_ID")
+quattro_docker() {
+  docker "$@"
+}
 "$SCRIPT_DIR/check-syntax.sh"
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -48,7 +55,7 @@ case "$(id -u)" in
     # sudo normally drops caller-provided environment variables. Pass the
     # validated ID explicitly so preflight, runtime services, and archival all
     # refer to one evidence bundle across the privilege transition.
-    exec sudo -- env QUATTRO_RUN_ID="$RUN_ID" "$(readlink -f "$0")" "$@" ;;
+    exec sudo -- env QUATTRO_RUN_ID="$RUN_ID" QUATTRO_SESSION_BACKEND="$SESSION_BACKEND" "$(readlink -f "$0")" "$@" ;;
 esac
 
 HOST_USER=looco
@@ -133,56 +140,42 @@ SYSTEM_PROXY_PID=
 TELEMETRY_PID=
 AGENT_STATUS_PID=
 ACTION_GATEWAY_PID=
-archive_file() {
-  source=$1
-  target=$2
-  [ -f "$source" ] || return 0
-  cp -f "$source" "$SESSION_ARCHIVE_DIR/$target"
-}
 archive_runtime_evidence() {
   [ "$QUATTRO" -eq 1 ] || return 0
+  archive_failed=0
   mkdir -p "$SESSION_ARCHIVE_DIR"
-  archive_file "$AGENT_STATUS_DIR/status.json" agent-status.json
-  archive_file "$TELEMETRY_DIR/telemetry.json" telemetry.json
-  archive_file "$ACTION_GATEWAY_DIR/action-status.json" action-status.json
-  archive_file "$ACTION_GATEWAY_DIR/mvp-status.json" mvp-status.json
-  archive_file "$ACTION_GATEWAY_DIR/gateway.log" action-gateway.log
-  archive_file "$ACTION_GATEWAY_DIR/launcher.log" action-launcher.log
-  archive_file "$WORKLOAD_DIR/registry.json" workload-registry.json
-  if docker container inspect quickshell-quattro-smoke >/dev/null 2>&1; then
-    docker logs quickshell-quattro-smoke >"$SESSION_ARCHIVE_DIR/quickshell-quattro-smoke.log" 2>&1 || true
-    docker inspect quickshell-quattro-smoke >"$SESSION_ARCHIVE_DIR/quickshell-quattro-smoke.inspect.json" || true
-  fi
-  if docker container inspect hyprland-phase2-drm >/dev/null 2>&1; then
-    docker logs hyprland-phase2-drm >"$SESSION_ARCHIVE_DIR/hyprland-phase2-drm.log" 2>&1 || true
-    docker inspect hyprland-phase2-drm >"$SESSION_ARCHIVE_DIR/hyprland-phase2-drm.inspect.json" || true
-  fi
+  quattro_archive_file "$AGENT_STATUS_DIR/status.json" "$SESSION_ARCHIVE_DIR" agent-status.json || archive_failed=1
+  quattro_archive_file "$TELEMETRY_DIR/telemetry.json" "$SESSION_ARCHIVE_DIR" telemetry.json || archive_failed=1
+  quattro_archive_file "$ACTION_GATEWAY_DIR/action-status.json" "$SESSION_ARCHIVE_DIR" action-status.json || archive_failed=1
+  quattro_archive_file "$ACTION_GATEWAY_DIR/mvp-status.json" "$SESSION_ARCHIVE_DIR" mvp-status.json || archive_failed=1
+  quattro_archive_file "$ACTION_GATEWAY_DIR/gateway.log" "$SESSION_ARCHIVE_DIR" action-gateway.log || archive_failed=1
+  quattro_archive_file "$ACTION_GATEWAY_DIR/launcher.log" "$SESSION_ARCHIVE_DIR" action-launcher.log || archive_failed=1
+  quattro_archive_file "$WORKLOAD_DIR/registry.json" "$SESSION_ARCHIVE_DIR" workload-registry.json || archive_failed=1
+  quattro_capture_container quickshell-quattro-smoke "$SESSION_ARCHIVE_DIR" || archive_failed=1
+  quattro_capture_container hyprland-phase2-drm "$SESSION_ARCHIVE_DIR" || archive_failed=1
+  [ "$archive_failed" -eq 0 ]
 }
 stop_system_proxy() {
   if [ -n "$SYSTEM_PROXY_PID" ]; then
-    kill "$SYSTEM_PROXY_PID" 2>/dev/null || true
-    wait "$SYSTEM_PROXY_PID" 2>/dev/null || true
+    quattro_stop_pid "$SYSTEM_PROXY_PID"
     SYSTEM_PROXY_PID=
   fi
 }
 stop_telemetry() {
   if [ -n "$TELEMETRY_PID" ]; then
-    kill "$TELEMETRY_PID" 2>/dev/null || true
-    wait "$TELEMETRY_PID" 2>/dev/null || true
+    quattro_stop_pid "$TELEMETRY_PID"
     TELEMETRY_PID=
   fi
 }
 stop_agent_status() {
   if [ -n "$AGENT_STATUS_PID" ]; then
-    kill "$AGENT_STATUS_PID" 2>/dev/null || true
-    wait "$AGENT_STATUS_PID" 2>/dev/null || true
+    quattro_stop_pid "$AGENT_STATUS_PID"
     AGENT_STATUS_PID=
   fi
 }
 stop_action_gateway() {
   if [ -n "$ACTION_GATEWAY_PID" ]; then
-    kill "$ACTION_GATEWAY_PID" 2>/dev/null || true
-    wait "$ACTION_GATEWAY_PID" 2>/dev/null || true
+    quattro_stop_pid "$ACTION_GATEWAY_PID"
     ACTION_GATEWAY_PID=
   fi
 }
@@ -204,11 +197,7 @@ if [ "$QUATTRO" -eq 1 ]; then
     sh "$SCRIPT_DIR/system-bus-readonly.sh" "$SYSTEM_PROXY_DIR/bus" \
     >"$SYSTEM_PROXY_DIR/proxy.log" 2>&1 &
   SYSTEM_PROXY_PID=$!
-  for attempt in 1 2 3 4 5; do
-    [ ! -S "$SYSTEM_PROXY_DIR/bus" ] || break
-    sleep 1
-  done
-  [ -S "$SYSTEM_PROXY_DIR/bus" ] || { echo "System bus proxy failed: $SYSTEM_PROXY_DIR/proxy.log" >&2; exit 1; }
+  quattro_wait_for_path socket "$SYSTEM_PROXY_DIR/bus" 5 || { echo "System bus proxy failed: $SYSTEM_PROXY_DIR/proxy.log" >&2; exit 1; }
   QS_SYSTEM_ARGS="--mount type=bind,src=$SYSTEM_PROXY_DIR/bus,dst=/tmp/host-system-bus,readonly -e DBUS_SYSTEM_BUS_ADDRESS=unix:path=/tmp/host-system-bus"
   # shellcheck disable=SC2086
   docker run --rm --network none --security-opt apparmor=unconfined \
@@ -228,11 +217,7 @@ if [ "$QUATTRO" -eq 1 ]; then
     "$SCRIPT_DIR/collect-jetson-telemetry.sh" "$TELEMETRY_DIR/telemetry.json" \
     >"$TELEMETRY_DIR/collector.log" 2>&1 &
   TELEMETRY_PID=$!
-  for attempt in 1 2 3 4 5; do
-    [ -s "$TELEMETRY_DIR/telemetry.json" ] && break
-    sleep 1
-  done
-  [ -s "$TELEMETRY_DIR/telemetry.json" ] || {
+  quattro_wait_for_path file "$TELEMETRY_DIR/telemetry.json" 5 || {
     echo "Telemetry collector failed: $TELEMETRY_DIR/collector.log" >&2
     exit 1
   }
@@ -246,11 +231,7 @@ if [ "$QUATTRO" -eq 1 ]; then
     "$SCRIPT_DIR/collect-jetson-agent-status.sh" "$AGENT_STATUS_DIR/status.json" \
     >"$AGENT_STATUS_DIR/collector.log" 2>&1 &
   AGENT_STATUS_PID=$!
-  for attempt in 1 2 3 4 5; do
-    [ -s "$AGENT_STATUS_DIR/status.json" ] && break
-    sleep 1
-  done
-  [ -s "$AGENT_STATUS_DIR/status.json" ] || {
+  quattro_wait_for_path file "$AGENT_STATUS_DIR/status.json" 5 || {
     echo "Agent status bridge failed: $AGENT_STATUS_DIR/collector.log" >&2
     exit 1
   }
@@ -288,6 +269,7 @@ RESTORE_GDM=0
 PANEL_STARTED=0
 cleanup() {
   result=$?
+  archive_failed=0
   trap - EXIT HUP INT TERM
   if [ "$PANEL_STARTED" -eq 1 ]; then
     docker stop --time 3 "$QS_CONTAINER" >/dev/null 2>&1 || true
@@ -299,24 +281,20 @@ cleanup() {
   stop_agent_status
   stop_system_proxy
   if [ "$QUATTRO" -eq 1 ]; then
-    archive_runtime_evidence
-    jq -cn --arg runId "$RUN_ID" --arg state restoring-gdm --arg revision "$(git -C "$SCRIPT_DIR/.." rev-parse HEAD 2>/dev/null || echo unavailable)" \
-      '{schemaVersion:1,runId:$runId,state:$state,revision:$revision,stateChangedAt:(now|todateiso8601)}' \
-      >"$SESSION_ARCHIVE_DIR/session.json.tmp"
-    mv "$SESSION_ARCHIVE_DIR/session.json.tmp" "$SESSION_ARCHIVE_DIR/session.json"
-    cp -f "$SCRIPT_DIR/../mvp/acceptance.json" "$SESSION_ARCHIVE_DIR/acceptance-manifest.json"
+    archive_runtime_evidence || archive_failed=1
+    revision=$(git -C "$SCRIPT_DIR/.." rev-parse HEAD 2>/dev/null || echo unavailable)
+    quattro_write_session_record "$SESSION_ARCHIVE_DIR" "$RUN_ID" restoring-gdm "$revision" || archive_failed=1
+    quattro_archive_file "$SCRIPT_DIR/../mvp/acceptance.json" "$SESSION_ARCHIVE_DIR" acceptance-manifest.json || archive_failed=1
   fi
   if [ "$RESTORE_GDM" -eq 1 ]; then
     systemctl start gdm3 || true
   fi
   if [ "$QUATTRO" -eq 1 ]; then
+    [ "$archive_failed" -eq 0 ] || result=1
     final_state=awaiting-visual-check
     [ "$result" -eq 0 ] || final_state=failed
-    jq -cn --arg runId "$RUN_ID" --arg state "$final_state" --arg revision "$(git -C "$SCRIPT_DIR/.." rev-parse HEAD 2>/dev/null || echo unavailable)" --argjson exitCode "$result" \
-      '{schemaVersion:1,runId:$runId,state:$state,revision:$revision,exitCode:$exitCode,stateChangedAt:(now|todateiso8601)}' \
-      >"$SESSION_ARCHIVE_DIR/session.json.tmp"
-    mv "$SESSION_ARCHIVE_DIR/session.json.tmp" "$SESSION_ARCHIVE_DIR/session.json"
-    chown -R "$HOST_UID:$HOST_GID" "$SESSION_ARCHIVE_DIR"
+    quattro_write_session_record "$SESSION_ARCHIVE_DIR" "$RUN_ID" "$final_state" "$revision" "$result" || result=1
+    chown -R "$HOST_UID:$HOST_GID" "$SESSION_ARCHIVE_DIR" || result=1
   fi
   echo "Test ended (status $result). Container logs retained: sudo docker logs hyprland-phase2-drm"
   exit "$result"
@@ -384,7 +362,7 @@ if [ "$PANEL" -eq 1 ] || [ "$QUATTRO" -eq 1 ]; then
   fi
   # shellcheck disable=SC2086
   docker run -d --name "$QS_CONTAINER" \
-    --label "dev.omarchy-quattro.run-id=$RUN_ID" \
+    --label "$CONTAINER_RUN_LABEL" \
     --network none --runtime=nvidia --gpus all --device=/dev/dri \
     --user "$HOST_UID:$HOST_GID" \
     --group-add "$VIDEO_GID" --group-add "$RENDER_GID" \
@@ -403,7 +381,7 @@ fi
 docker run -it \
   "$@" \
   --name hyprland-phase2-drm \
-  --label "dev.omarchy-quattro.run-id=$RUN_ID" \
+  --label "$CONTAINER_RUN_LABEL" \
   --network none \
   --runtime=nvidia \
   --gpus all \

@@ -8,8 +8,12 @@ Run `20260922-063507-9503` passed the full archived acceptance contract:
 Hyprland and the real Quattro shell rendered on the Jetson, required panels and
 input were observed by the human operator, normal exit restored GDM, the
 detached Codex agent completed the non-visual checks, and the offline evaluator
-recorded no failed checks. Current work is the M6 reproducibility and handoff
-baseline rather than additional component experiments.
+recorded no failed checks. The M6 reproducibility baseline is committed; current
+work is S1 of the selectable-session plan, separating reusable lifecycle policy
+from the physical-VT mechanism rather than adding more component experiments.
+Run `20260922-073620-56102` physically verified the first S1 refactor slice:
+the `lab-vt` backend rendered Quattro, exited normally, archived its evidence,
+and returned to GDM.
 
 ## Current position
 

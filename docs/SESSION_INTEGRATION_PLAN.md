@@ -101,7 +101,18 @@ IDs, and the accepted archive still evaluates successfully offline.
 
 ### S1 — Separate lifecycle policy from the VT mechanism
 
-Status: planned.
+Status: in progress; the first slice is physically verified. It introduces a
+shared lifecycle module for backend validation, run IDs, container labels,
+bounded readiness waits, owned-process cleanup, atomic session records, and
+evidence recovery. The existing launcher explicitly selects `lab-vt`;
+`gdm-session` is reserved but rejected by that launcher until S2 establishes
+its seat model.
+
+Physical evidence: run `20260922-073620-56102` loaded the five required shell
+milestones with no fatal marker, Hyprland exited with status `0`, the shell
+ended with the expected Wayland shutdown signature, and GDM was active after
+the human's normal exit. This confirms the refactored `lab-vt` lifecycle slice;
+it is not a replacement for the earlier full MVP panel/input visual record.
 
 - Extract a session-neutral orchestration module for run IDs, evidence,
   collectors, action gateway startup, container labels, cleanup, and archival.
@@ -113,6 +124,11 @@ Status: planned.
 
 Gate: the current physical VT workflow behaves identically, and its accepted
 contract passes with the refactored shared orchestration.
+
+Remaining before this gate: move collector/action-gateway ownership and final
+session-record transitions behind the common orchestration boundary, complete
+the failure matrix around those processes, and perform one bundled physical
+regression of the unchanged `lab-vt` backend.
 
 ### S2 — Prove logind/GDM seat ownership without installing a session
 

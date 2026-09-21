@@ -9,6 +9,7 @@ shell_files="\
 $SCRIPT_DIR/check-syntax.sh \
 $SCRIPT_DIR/start-quattro-lab.sh \
 $SCRIPT_DIR/run-hyprland-drm.sh \
+$SCRIPT_DIR/quattro-session-common.sh \
 $SCRIPT_DIR/collect-jetson-telemetry.sh \
 $SCRIPT_DIR/collect-jetson-agent-status.sh \
 $SCRIPT_DIR/quattro-health-report.sh \
@@ -43,6 +44,7 @@ PY
 
 sh -n "$ROOT_DIR/tests/mvp/test-conductor.sh"
 sh -n "$ROOT_DIR/tests/mvp/test-control-plane.sh"
+sh -n "$ROOT_DIR/tests/session/test-session-common.sh"
 
 for file in \
   "$ROOT_DIR/tests/runtime-smoke/jetson-telemetry/manifest.json" \

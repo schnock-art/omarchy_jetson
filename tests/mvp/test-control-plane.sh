@@ -143,9 +143,10 @@ test -s "$gateway_marker"
 detached_pid=
 
 rg -F 'sudo -- env QUATTRO_RUN_ID="$RUN_ID"' "$ROOT_DIR/scripts/run-hyprland-drm.sh" >/dev/null
-test "$(rg -c 'dev.omarchy-quattro.run-id=\$RUN_ID' "$ROOT_DIR/scripts/run-hyprland-drm.sh")" -eq 2
-rg -F 'container_run=$(sudo docker container inspect' "$ROOT_DIR/scripts/start-quattro-lab.sh" >/dev/null
-rg -F 'mv -f "$log_tmp" "$ARCHIVE_DIR/$archive_run/$name.log"' "$ROOT_DIR/scripts/start-quattro-lab.sh" >/dev/null
+rg -F 'QUATTRO_SESSION_BACKEND="$SESSION_BACKEND"' "$ROOT_DIR/scripts/run-hyprland-drm.sh" >/dev/null
+test "$(rg -c -- '--label "\$CONTAINER_RUN_LABEL"' "$ROOT_DIR/scripts/run-hyprland-drm.sh")" -eq 2
+rg -F 'quattro_archive_stopped_container quickshell-quattro-smoke' "$ROOT_DIR/scripts/start-quattro-lab.sh" >/dev/null
+rg -F 'mv -f "$log_tmp" "$archive_dir/$container_name.log"' "$ROOT_DIR/scripts/quattro-session-common.sh" >/dev/null
 rg -F 'chown -R "$HOST_UID:$HOST_GID" "$SESSION_ARCHIVE_DIR"' "$ROOT_DIR/scripts/run-hyprland-drm.sh" >/dev/null
 rg -F 'sandbox_workspace_write.network_access=true' "$ROOT_DIR/scripts/quattro-agent-adapter.sh" >/dev/null
 
