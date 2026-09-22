@@ -172,14 +172,17 @@ met. See [GDM_WAYLAND_EXPERIMENT.md](GDM_WAYLAND_EXPERIMENT.md).
 
 ### S3 — Implement a narrow session service and wrapper
 
-Status: implemented and ready for temporary privileged installation testing.
+Status: implemented; temporary privileged installation health check passed.
 S2 selected the containerized presentation plane with a narrow root-owned host
 service. S3 now implements the versioned fixed-operation contract, peer/logind
 authorization, atomic state machine, idempotency, recovery rules, unprivileged
 client, and fixed container/evidence supervisor. The fixture and security gates
 pass; see [GDM_SESSION_SERVICE.md](GDM_SESSION_SERVICE.md) and
 [S3_SECURITY_REVIEW.md](S3_SECURITY_REVIEW.md). Nothing is installed yet and
-this does not install a GDM session entry.
+this does not install a GDM session entry. The five installed files match their
+recorded hashes, the service is active but static (not boot-enabled), its
+root-owned group socket is present, and an unauthorized root-peer request
+failed closed without creating run state.
 
 - Add an unprivileged wrapper that validates its GDM/logind session and creates
   one run ID.
@@ -196,8 +199,9 @@ Gate: fixture tests cover normal, malformed, duplicate, unauthorized, timeout,
 interruption, and recovery paths. A service security review confirms that it
 cannot become a generic Docker or root execution API.
 
-Gate result: passed for the repository implementation. Physical display
-behavior remains a separate temporary-installation checkpoint before S4.
+Gate result: passed for the repository implementation and temporary service
+health/rollback boundary. Physical display behavior requires the opt-in S4 GDM
+entry and remains unverified.
 
 ### S4 — Add an opt-in GDM session entry
 

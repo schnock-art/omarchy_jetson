@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import socket
 import subprocess
 import sys
 import tempfile
@@ -69,10 +70,18 @@ class InstallTests(unittest.TestCase):
             source.write_text(f"fixture {name}\n", encoding="utf-8")
             self.files.append(INSTALL.InstallFile(source, destination_root / name, mode))
         self.state = self.root / "state/install.json"
+        self.socket_path = self.root / "control.sock"
+        self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.socket.bind(str(self.socket_path))
+        self.socket.listen(1)
         self.system = FakeSystem()
-        self.installer = INSTALL.Installer(tuple(self.files), self.state, self.system, require_root_ownership=False)
+        self.installer = INSTALL.Installer(
+            tuple(self.files), self.state, self.system,
+            require_root_ownership=False, socket_path=self.socket_path,
+        )
 
     def tearDown(self) -> None:
+        self.socket.close()
         self.temporary.cleanup()
 
     def test_install_status_and_uninstall_are_reversible(self) -> None:
@@ -113,7 +122,10 @@ class InstallTests(unittest.TestCase):
 
     def test_failed_service_start_rolls_back_files_group_and_membership(self) -> None:
         system = FakeSystem(fail_start=True)
-        installer = INSTALL.Installer(tuple(self.files), self.state, system, require_root_ownership=False)
+        installer = INSTALL.Installer(
+            tuple(self.files), self.state, system,
+            require_root_ownership=False, socket_path=self.socket_path,
+        )
         with mock.patch.object(INSTALL.os, "chown"), self.assertRaisesRegex(INSTALL.InstallError, "fixture start failure"):
             installer.install()
         self.assertFalse(system.group)
@@ -128,7 +140,10 @@ class InstallTests(unittest.TestCase):
 
     def test_enabled_unit_state_is_rejected_and_rolled_back(self) -> None:
         system = FakeSystem(unit_state="enabled")
-        installer = INSTALL.Installer(tuple(self.files), self.state, system, require_root_ownership=False)
+        installer = INSTALL.Installer(
+            tuple(self.files), self.state, system,
+            require_root_ownership=False, socket_path=self.socket_path,
+        )
         with mock.patch.object(INSTALL.os, "chown"), self.assertRaisesRegex(INSTALL.InstallError, "enabled at boot"):
             installer.install()
         self.assertFalse(self.state.exists())

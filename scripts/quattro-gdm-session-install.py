@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from typing import Any
 
 
@@ -23,6 +24,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 LIBEXEC = pathlib.Path("/usr/libexec/omarchy-quattro")
 UNIT_PATH = pathlib.Path("/etc/systemd/system/omarchy-quattro-session.service")
 STATE_PATH = pathlib.Path("/var/lib/omarchy-quattro/install.json")
+SOCKET_PATH = pathlib.Path("/run/omarchy-quattro/control.sock")
 SERVICE_NAME = "omarchy-quattro-session.service"
 GROUP_NAME = "omarchy-quattro"
 DESKTOP_USER = "looco"
@@ -105,11 +107,13 @@ class Installer:
         state_path: pathlib.Path = STATE_PATH,
         system: System | None = None,
         require_root_ownership: bool = True,
+        socket_path: pathlib.Path = SOCKET_PATH,
     ):
         self.files = files
         self.state_path = state_path
         self.system = system or System()
         self.require_root_ownership = require_root_ownership
+        self.socket_path = socket_path
 
     def _matches(self, path: pathlib.Path, record: dict[str, Any]) -> bool:
         if path.is_symlink() or not path.is_file() or sha256(path) != record["sha256"]:
@@ -141,6 +145,14 @@ class Installer:
                 directory.rmdir()
             except OSError:
                 pass
+
+    def _wait_for_socket(self, timeout: float = 5.0) -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self.socket_path.is_socket():
+                return
+            time.sleep(0.05)
+        raise InstallError(f"service did not publish its control socket within {timeout:g} seconds")
 
     def _load_state(self) -> dict[str, Any]:
         if self.state_path.is_symlink() or not self.state_path.is_file():
@@ -219,6 +231,7 @@ class Installer:
             os.chown(self.state_path, 0, 0)
             self._command(["systemctl", "daemon-reload"])
             self._command(["systemctl", "start", SERVICE_NAME])
+            self._wait_for_socket()
             unit_state = self._unit_file_state()
             if self._enabled_at_boot(unit_state):
                 raise InstallError(f"service unexpectedly became enabled at boot ({unit_state})")
@@ -256,7 +269,7 @@ class Installer:
             "serviceActive": active,
             "enabledAtBoot": self._enabled_at_boot(unit_state),
             "unitFileState": unit_state,
-            "socketPresent": pathlib.Path("/run/omarchy-quattro/control.sock").is_socket(),
+            "socketPresent": self.socket_path.is_socket(),
             "files": files,
         }
 

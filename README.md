@@ -126,11 +126,15 @@ planned narrow host-service architecture. Reversible experiment
 NVIDIA/CUDA health, GDM recovery, and byte-for-byte restoration of the original
 GDM configuration. S2 is complete; the fixed, allowlisted S3 host service,
 runtime supervisor, and unprivileged wrapper are implemented and pass their
-fixture/security gates. They are not installed. The next checkpoint is a
-temporary privileged service test without a GDM session entry. See
+fixture/security gates. The temporary service is installed for its approved
+health checkpoint but remains static rather than boot-enabled. See
 [docs/SESSION_INTEGRATION_DECISION.md](docs/SESSION_INTEGRATION_DECISION.md).
 
 The approved temporary service checkpoint uses the reversible, hash-protected
 conductor documented in
 [docs/GDM_SESSION_SERVICE.md](docs/GDM_SESSION_SERVICE.md). It never enables the
 service at boot and does not change or restart GDM.
+
+The checkpoint passes: the installed hashes, static unit state, active
+service, socket ownership/mode, and fail-closed peer authorization were verified.
+Visible compositor acceptance remains an S4 physical GDM-session test.

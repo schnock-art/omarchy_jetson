@@ -152,3 +152,18 @@ rollback it stops the service, removes only the recorded files, reverses only
 the group membership/group created by this installation, reloads systemd, and
 retains repository evidence. Installation failure runs the same bounded
 rollback automatically.
+
+### Verified installation result
+
+The temporary service was installed and verified on 2026-09-22. All five
+installed files matched their recorded hashes, the unit reported `static`, the
+service was active, and the control socket appeared as mode `0660` owned by
+`root:omarchy-quattro`. A fixed health request from a root peer returned the
+expected correlated `unauthorized` result and created no run state, confirming
+that socket access alone cannot bypass the non-root logind-session rule.
+
+The initial installer output observed `socketPresent: false` during the small
+interval between systemd marking the process active and the service binding its
+socket; the subsequent live check was true. The conductor now waits up to five
+seconds for the socket and rolls back if it never appears. GDM remained
+unchanged and the service remains static rather than boot-enabled.
