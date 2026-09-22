@@ -65,8 +65,11 @@ fixed stop/collect operations. Rejected malformed, duplicate, or unauthorized
 requests do not change a healthy run's lifecycle state.
 
 For `start-session-v1`, the peer PID must also belong to the exact logind
-session scope named by the request. This prevents an SSH process with the same
-UID from initiating a compositor in an unrelated local desktop session.
+session scope named by the request. The root-owned AccountsService record must
+also name `omarchy-quattro` as the session GDM selected. This prevents an SSH
+process or an ordinary Ubuntu Wayland terminal with the same UID from
+initiating the compositor. The record is opened without following symlinks and
+must be a bounded, root-owned, non-writable regular file.
 
 ## Installation boundary
 

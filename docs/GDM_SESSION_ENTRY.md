@@ -2,7 +2,9 @@
 
 ## Status
 
-The S4 repository implementation is installed and ready for its physical gate. It adds
+The S4 session entry is installed, but the first physical start attempt failed
+closed before the runtime began. The repository fix is implemented and awaits
+a transactional S3 refresh before a new physical gate. S4 adds
 an explicitly selectable **Quattro (Jetson preview)** Wayland session; it does
 not make Quattro preferred, enable automatic login, enable the service at boot,
 or alter GDM's configuration.
@@ -12,9 +14,18 @@ launcher remains the supported recovery path.
 
 The verified installation has matching hashes for both root-owned S4 files,
 an active static S3 service and socket, and unchanged GDM and AccountsService
-records. GDM still has `WaylandEnable=false`, so the entry has not run yet.
+records at install time.
 Fresh GDM experiment bundles record whether the entry is installed, its hash,
 and whether it matches the repository source before the physical gate begins.
+
+The 2026-09-22 attempt showed the entry in GDM, then returned to the greeter on
+each of three starts. The service created no run. Journal evidence at
+16:31:19, 16:31:30, and 16:31:36 recorded the wrapper being rejected because
+the service could not read `/proc/PID/environ`. The unit deliberately lacks
+`CAP_SYS_PTRACE`, so that authorization source was incompatible with the
+installed confinement. The replacement keeps peer credentials, active logind
+session checks, and exact cgroup membership, but validates GDM's selected
+session using the bounded root-owned AccountsService record instead.
 
 ## Lifecycle
 
@@ -32,11 +43,12 @@ collected and returned nonzero so GDM can close the failed session.
 
 The service binds start authority to three facts simultaneously: Unix peer
 credentials, the logind session owner, and the peer PID's exact
-`session-N.scope` cgroup. It also requires the peer process environment to name
-the exact `omarchy-quattro` Wayland desktop, preventing an ordinary Ubuntu
-Wayland terminal from initiating the compositor. The same UID over SSH
-therefore cannot manufacture a start request for another local session. Stop,
-status, and collection retain
+`session-N.scope` cgroup. It also requires the protected AccountsService record
+to name `omarchy-quattro` as GDM's selected session, preventing an ordinary
+Ubuntu Wayland terminal from initiating the compositor. This avoids depending
+on `/proc/PID/environ`, which the installed service intentionally lacks
+`CAP_SYS_PTRACE` permission to read. The same UID over SSH therefore cannot
+manufacture a start request for another local session. Stop, status, and collection retain
 the run/session ownership checks needed for bounded recovery.
 
 ## Installed files

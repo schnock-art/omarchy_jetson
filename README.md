@@ -140,8 +140,12 @@ The checkpoint passes: the installed hashes, static unit state, active
 service, socket ownership/mode, and fail-closed peer authorization were verified.
 Visible compositor acceptance remains an S4 physical GDM-session test.
 
-The S4 implementation is fixture-tested and transactionally installed for its
-physical gate. It adds only an explicitly selected
+The S4 entry is transactionally installed. Its first physical start attempt
+failed closed before runtime launch because the confined service could not read
+the wrapper's process environment. The repository fix now validates GDM's
+root-owned AccountsService selection while retaining peer/logind/cgroup checks;
+it passes fixtures and awaits an installed-bundle refresh and retry. S4 adds
+only an explicitly selected
 `Quattro (Jetson preview)` entry and does not change the remembered/default
 session, automatic login, GDM policy, or boot enablement. See
 [docs/GDM_SESSION_ENTRY.md](docs/GDM_SESSION_ENTRY.md).

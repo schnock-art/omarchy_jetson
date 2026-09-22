@@ -178,7 +178,7 @@ class ControlTests(unittest.TestCase):
         ))
         with mock.patch.object(SERVICE, "run", return_value=SERVICE.subprocess.CompletedProcess([], 0, valid, "")):
             with mock.patch.object(SERVICE.pathlib.Path, "read_text", return_value="0::/user.slice/user-2002.slice/session-17.scope\n"), mock.patch.object(
-                SERVICE.pathlib.Path, "read_bytes", return_value=b"DESKTOP_SESSION=omarchy-quattro\0XDG_SESSION_TYPE=wayland\0",
+                SERVICE, "selected_account_session", return_value="omarchy-quattro",
             ):
                 identity = SERVICE.LogindInspector().inspect("17", 2002, True, 1234)
         self.assertEqual(identity.tty, "tty2")
@@ -214,11 +214,21 @@ class ControlTests(unittest.TestCase):
         ))
         with mock.patch.object(SERVICE, "run", return_value=SERVICE.subprocess.CompletedProcess([], 0, valid, "")), mock.patch.object(
             SERVICE.pathlib.Path, "read_text", return_value="0::/user.slice/user-2002.slice/session-17.scope\n",
-        ), mock.patch.object(
-            SERVICE.pathlib.Path, "read_bytes", return_value=b"DESKTOP_SESSION=ubuntu\0XDG_SESSION_TYPE=wayland\0",
-        ):
+        ), mock.patch.object(SERVICE, "selected_account_session", return_value="ubuntu"):
             with self.assertRaisesRegex(SERVICE.ControlError, "not the selected Quattro"):
                 SERVICE.LogindInspector().inspect("17", 2002, True, 1234)
+
+    def test_accounts_service_session_parser_is_strict(self) -> None:
+        self.assertEqual(SERVICE.parse_account_session(b"[User]\nSession=omarchy-quattro\n"), "omarchy-quattro")
+        for malformed in (
+            b"[User]\n",
+            b"[Other]\nSession=omarchy-quattro\n",
+            b"[User]\nSession=omarchy-quattro\nSession=ubuntu\n",
+            b"[User]\nSession=../escape\n",
+            b"[User]\nSession=\xff\n",
+        ):
+            with self.assertRaises(SERVICE.ControlError):
+                SERVICE.parse_account_session(malformed)
 
     def test_protocol_reader_is_bounded_and_requires_one_record(self) -> None:
         left, right = SERVICE.socket.socketpair()

@@ -31,6 +31,8 @@ SOCKET_GROUP = "omarchy-quattro"
 RUNTIME_HELPER = pathlib.Path("/usr/libexec/omarchy-quattro/session-runtime")
 RUNTIME_ROOT = pathlib.Path("/run/omarchy-quattro/runtime")
 ARCHIVE_ROOT = pathlib.Path("/home/looco/repos/omarchy_jetson/artifacts/quattro-runs")
+ACCOUNTS_SERVICE_ROOT = pathlib.Path("/var/lib/AccountsService/users")
+MAX_ACCOUNT_RECORD_BYTES = 64 * 1024
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$")
 SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 TTY_RE = re.compile(r"^tty([1-9][0-9]?)$")
@@ -88,6 +90,54 @@ def parse_properties(raw: str) -> dict[str, str]:
             key, value = line.split("=", 1)
             properties[key] = value
     return properties
+
+
+def parse_account_session(raw: bytes) -> str:
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ControlError("unauthorized", "the selected GDM session record is not UTF-8") from exc
+    section = ""
+    sessions: list[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith(("#", ";")):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1].strip()
+            continue
+        if section == "User" and "=" in line:
+            key, value = line.split("=", 1)
+            if key.strip() == "Session":
+                sessions.append(value.strip())
+    if len(sessions) != 1 or not ID_RE.fullmatch(sessions[0]):
+        raise ControlError("unauthorized", "cannot validate the selected GDM session record")
+    return sessions[0]
+
+
+def selected_account_session(uid: int) -> str:
+    try:
+        username = pwd.getpwuid(uid).pw_name
+    except KeyError as exc:
+        raise ControlError("unauthorized", "the peer UID has no local account") from exc
+    path = ACCOUNTS_SERVICE_ROOT / username
+    flags = os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise ControlError("unauthorized", "cannot open the selected GDM session record") from exc
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise ControlError("unauthorized", "the selected GDM session record is unsafe")
+        raw = os.read(descriptor, MAX_ACCOUNT_RECORD_BYTES + 1)
+        if len(raw) > MAX_ACCOUNT_RECORD_BYTES:
+            raise ControlError("unauthorized", "the selected GDM session record is oversized")
+    except OSError as exc:
+        raise ControlError("unauthorized", "cannot read the selected GDM session record") from exc
+    finally:
+        os.close(descriptor)
+    return parse_account_session(raw)
 
 
 def validate_identifier(value: Any, label: str, pattern: re.Pattern[str] = ID_RE) -> str:
@@ -184,13 +234,8 @@ class LogindInspector:
             scope = values.get("Scope", "")
             if not scope or not any(line.rstrip().endswith(f"/{scope}") for line in cgroup.splitlines()):
                 raise ControlError("unauthorized", "peer process does not belong to the requested logind session")
-            try:
-                environment_items = pathlib.Path(f"/proc/{caller_pid}/environ").read_bytes().split(b"\0")
-                environment = dict(item.split(b"=", 1) for item in environment_items if b"=" in item)
-            except (OSError, ValueError) as exc:
-                raise ControlError("unauthorized", "cannot validate the peer process environment") from exc
-            if environment.get(b"DESKTOP_SESSION") != b"omarchy-quattro" or environment.get(b"XDG_SESSION_TYPE") != b"wayland":
-                raise ControlError("unauthorized", "peer process is not the selected Quattro GDM Wayland session")
+            if selected_account_session(caller_uid) != "omarchy-quattro":
+                raise ControlError("unauthorized", "peer process is not the selected Quattro GDM session")
         return SessionIdentity(
             session_id=session_id,
             uid=owner_uid,

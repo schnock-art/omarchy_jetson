@@ -206,15 +206,20 @@ entry and remains unverified.
 
 ### S4 — Add an opt-in GDM session entry
 
-Status: implemented and transactionally installed; ready for physical test.
+Status: installed; first physical start failed closed before runtime launch.
+The repository authorization fix passes fixtures but must be transactionally
+refreshed before the physical gate is retried.
 The wrapper now owns the complete start/status/stop/collect
 lifecycle and start is bound to the GDM peer process's exact logind scope. The
 hash-protected entry conductor is idempotent, preserves GDM/default settings,
 refuses active-run removal, and requires the installed S3 bundle to be
 transactionally refreshed first. See
 [GDM_SESSION_ENTRY.md](GDM_SESSION_ENTRY.md). Both installed S4 files match
-their recorded hashes, the static service/socket are healthy, and GDM plus the
-user account defaults remain unchanged. Physical acceptance remains pending.
+their install-time recorded hashes, and the static service/socket remained
+healthy. The failure was traced to the confined service being unable to read
+the GDM wrapper's `/proc/PID/environ`; the replacement validates the protected
+AccountsService selection while retaining peer, logind, and exact-cgroup
+checks. Physical acceptance remains pending.
 
 - Package the reviewed wrapper as `Quattro (Jetson preview)` under the normal
   Wayland session mechanism.
