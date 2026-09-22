@@ -47,9 +47,11 @@ python3 - "$ROOT_DIR/scripts/quattro-mvp.py" \
   "$ROOT_DIR/scripts/quattro-gdm-wayland-experiment.py" \
   "$ROOT_DIR/scripts/quattro-gdm-session-service.py" \
   "$ROOT_DIR/scripts/quattro-gdm-session-wrapper.py" \
+  "$ROOT_DIR/scripts/quattro-gdm-session-install.py" \
   "$ROOT_DIR/tests/session/test-session-probe.py" \
   "$ROOT_DIR/tests/session/test-gdm-wayland-experiment.py" \
-  "$ROOT_DIR/tests/session/test-gdm-session-control.py" <<'PY'
+  "$ROOT_DIR/tests/session/test-gdm-session-control.py" \
+  "$ROOT_DIR/tests/session/test-gdm-session-install.py" <<'PY'
 import ast
 import pathlib
 import sys

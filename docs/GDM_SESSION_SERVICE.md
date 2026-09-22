@@ -105,3 +105,48 @@ identifier fixtures pass. The focused review is recorded in
 [S3_SECURITY_REVIEW.md](S3_SECURITY_REVIEW.md). The next gate is a reviewed,
 temporary root-owned installation followed by a controlled physical session;
 it must not add the S4 GDM entry or change GDM policy yet.
+
+## Temporary installation checkpoint
+
+The maintainer approved the temporary S3 service installation. Inspect the
+exact files and hashes without privilege:
+
+```sh
+cd /home/looco/repos/omarchy_jetson
+./scripts/quattro-gdm-session-install.py plan
+```
+
+Install and manually start the service with:
+
+```sh
+sudo ./scripts/quattro-gdm-session-install.py install --approve
+```
+
+The conductor creates the dedicated `omarchy-quattro` group, adds `looco` only
+when necessary, atomically installs five reviewed files, reloads systemd, and
+starts the service. It explicitly verifies that the unit is **not enabled** at
+boot. It does not edit or restart GDM. Do not rerun the earlier GDM Wayland
+experiment for this checkpoint.
+
+Read-only installed status:
+
+```sh
+sudo ./scripts/quattro-gdm-session-install.py status
+```
+
+Expected status is `filesMatch: true`, `serviceActive: true`,
+`enabledAtBoot: false`, and `socketPresent: true`. A new login is required
+before the desktop user's newly added supplementary group is effective, but no
+logout is needed merely to verify root-side service health.
+
+Rollback is explicit and hash-protected:
+
+```sh
+sudo ./scripts/quattro-gdm-session-install.py uninstall --approve
+```
+
+Uninstall refuses to delete any installed file whose hash changed. On a normal
+rollback it stops the service, removes only the recorded files, reverses only
+the group membership/group created by this installation, reloads systemd, and
+retains repository evidence. Installation failure runs the same bounded
+rollback automatically.

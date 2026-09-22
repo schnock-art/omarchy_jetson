@@ -181,3 +181,25 @@ probe="artifacts/session-probes/$(date +%Y%m%d-%H%M%S).json"
 A valid probe may exit `1` when it records a policy blocker. See
 [SESSION_INTEGRATION_DECISION.md](SESSION_INTEGRATION_DECISION.md) before
 interpreting or acting on the result.
+
+## Temporary S3 service checkpoint
+
+The S3 control service can be installed for a non-display health and rollback
+check without changing GDM or enabling anything at boot:
+
+```sh
+./scripts/quattro-gdm-session-install.py plan
+sudo ./scripts/quattro-gdm-session-install.py install --approve
+sudo ./scripts/quattro-gdm-session-install.py status
+```
+
+Do not rerun the GDM Wayland experiment and do not invoke the session start
+operation at this checkpoint. Visible compositor acceptance requires the later
+opt-in S4 GDM entry. Roll back the temporary service with:
+
+```sh
+sudo ./scripts/quattro-gdm-session-install.py uninstall --approve
+```
+
+See [GDM_SESSION_SERVICE.md](GDM_SESSION_SERVICE.md) for expected status and
+hash-protected rollback behavior.

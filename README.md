@@ -129,3 +129,8 @@ runtime supervisor, and unprivileged wrapper are implemented and pass their
 fixture/security gates. They are not installed. The next checkpoint is a
 temporary privileged service test without a GDM session entry. See
 [docs/SESSION_INTEGRATION_DECISION.md](docs/SESSION_INTEGRATION_DECISION.md).
+
+The approved temporary service checkpoint uses the reversible, hash-protected
+conductor documented in
+[docs/GDM_SESSION_SERVICE.md](docs/GDM_SESSION_SERVICE.md). It never enables the
+service at boot and does not change or restart GDM.

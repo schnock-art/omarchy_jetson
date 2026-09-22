@@ -1,0 +1,32 @@
+[Unit]
+Description=Omarchy Quattro narrow GDM session service
+Documentation=file:/home/looco/repos/omarchy_jetson/docs/GDM_SESSION_SERVICE.md
+After=docker.service systemd-logind.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/omarchy-quattro/session-service serve
+Restart=on-failure
+RestartSec=2
+RuntimeDirectory=omarchy-quattro
+RuntimeDirectoryMode=0755
+UMask=0077
+NoNewPrivileges=no
+PrivateDevices=no
+PrivateTmp=no
+ProtectSystem=strict
+ReadWritePaths=/run/omarchy-quattro /home/looco/repos/omarchy_jetson/artifacts /home/looco/.local/state /tmp
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_KILL CAP_SETGID CAP_SETUID
+Environment=PYTHONDONTWRITEBYTECODE=1
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+LockPersonality=yes
+
+[Install]
+# Intentionally empty: the temporary S3 service must never be enabled at boot.
