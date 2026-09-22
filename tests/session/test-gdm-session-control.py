@@ -26,7 +26,8 @@ class FixtureInspector:
         self.owner_uid = owner_uid
         self.active = active
 
-    def inspect(self, session_id: str, caller_uid: int, require_active: bool) -> Any:
+    def inspect(self, session_id: str, caller_uid: int, require_active: bool, caller_pid: int | None = None) -> Any:
+        del caller_pid
         if caller_uid != self.owner_uid:
             raise SERVICE.ControlError("unauthorized", "fixture owner mismatch")
         if require_active and not self.active:
@@ -55,6 +56,10 @@ class FixtureRuntime:
     def collect(self, identity: Any, run_id: str) -> None:
         self.invoke("collect", run_id)
 
+    def status(self, run_id: str) -> str:
+        self.calls.append(("status", run_id))
+        return "running"
+
 
 def request(operation: str, request_id: str, run_id: str = "run-1", session_id: str = "17") -> dict[str, Any]:
     return {
@@ -82,6 +87,8 @@ class ControlTests(unittest.TestCase):
 
     def test_normal_lifecycle_and_atomic_state(self) -> None:
         self.assertEqual(self.handle("start-session-v1", "req-start")["code"], "started")
+        status = self.handle("status-session-v1", "req-status")
+        self.assertEqual(status["sessionState"], "running")
         self.assertEqual(self.handle("stop-session-v1", "req-stop")["code"], "stopped")
         self.assertEqual(self.handle("collect-session-v1", "req-collect")["code"], "collected")
         state_path = pathlib.Path(self.temporary.name) / "run-1.json"
@@ -89,7 +96,14 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(state["state"], "collected")
         self.assertEqual(state["session"]["tty"], "tty2")
         self.assertFalse(list(pathlib.Path(self.temporary.name).glob(".run-1.json.*")))
-        self.assertEqual(self.runtime.calls, [("start", "run-1"), ("stop", "run-1"), ("collect", "run-1")])
+        self.assertEqual(self.runtime.calls, [("start", "run-1"), ("status", "run-1"), ("stop", "run-1"), ("collect", "run-1")])
+
+    def test_status_synchronizes_natural_runtime_exit(self) -> None:
+        self.handle("start-session-v1", "req-start")
+        self.runtime.status = mock.Mock(return_value="stopped")
+        result = self.handle("status-session-v1", "req-status")
+        self.assertEqual(result["sessionState"], "stopped")
+        self.assertEqual(self.store.load("run-1")["state"], "stopped")
 
     def test_malformed_and_unknown_fields_fail_closed(self) -> None:
         malformed = request("start-session-v1", "req-malformed")
@@ -160,22 +174,51 @@ class ControlTests(unittest.TestCase):
         valid = "\n".join((
             "Id=17", "User=2002", "Active=yes", "State=active", "Remote=no",
             "Type=wayland", "Class=user", "Seat=seat0", "TTY=tty2", "VTNr=2",
-            "Service=gdm-password",
+            "Service=gdm-password", "Scope=session-17.scope",
         ))
         with mock.patch.object(SERVICE, "run", return_value=SERVICE.subprocess.CompletedProcess([], 0, valid, "")):
-            identity = SERVICE.LogindInspector().inspect("17", 2002, True)
+            with mock.patch.object(SERVICE.pathlib.Path, "read_text", return_value="0::/user.slice/user-2002.slice/session-17.scope\n"), mock.patch.object(
+                SERVICE.pathlib.Path, "read_bytes", return_value=b"DESKTOP_SESSION=omarchy-quattro\0XDG_SESSION_TYPE=wayland\0",
+            ):
+                identity = SERVICE.LogindInspector().inspect("17", 2002, True, 1234)
         self.assertEqual(identity.tty, "tty2")
         self.assertEqual(identity.vt_number, 2)
 
         wrong_owner = valid.replace("User=2002", "User=3000")
         with mock.patch.object(SERVICE, "run", return_value=SERVICE.subprocess.CompletedProcess([], 0, wrong_owner, "")):
             with self.assertRaisesRegex(SERVICE.ControlError, "owner"):
-                SERVICE.LogindInspector().inspect("17", 2002, True)
+                SERVICE.LogindInspector().inspect("17", 2002, True, 1234)
 
         xorg = valid.replace("Type=wayland", "Type=x11")
         with mock.patch.object(SERVICE, "run", return_value=SERVICE.subprocess.CompletedProcess([], 0, xorg, "")):
             with self.assertRaisesRegex(SERVICE.ControlError, "wayland"):
-                SERVICE.LogindInspector().inspect("17", 2002, True)
+                SERVICE.LogindInspector().inspect("17", 2002, True, 1234)
+
+    def test_logind_start_rejects_peer_outside_requested_session_scope(self) -> None:
+        valid = "\n".join((
+            "Id=17", "User=2002", "Active=yes", "State=active", "Remote=no",
+            "Type=wayland", "Class=user", "Seat=seat0", "TTY=tty2", "VTNr=2",
+            "Service=gdm-password", "Scope=session-17.scope",
+        ))
+        with mock.patch.object(SERVICE, "run", return_value=SERVICE.subprocess.CompletedProcess([], 0, valid, "")), mock.patch.object(
+            SERVICE.pathlib.Path, "read_text", return_value="0::/user.slice/user-2002.slice/session-ssh.scope\n",
+        ):
+            with self.assertRaisesRegex(SERVICE.ControlError, "does not belong"):
+                SERVICE.LogindInspector().inspect("17", 2002, True, 1234)
+
+    def test_logind_start_rejects_ordinary_ubuntu_wayland_peer(self) -> None:
+        valid = "\n".join((
+            "Id=17", "User=2002", "Active=yes", "State=active", "Remote=no",
+            "Type=wayland", "Class=user", "Seat=seat0", "TTY=tty2", "VTNr=2",
+            "Service=gdm-password", "Scope=session-17.scope",
+        ))
+        with mock.patch.object(SERVICE, "run", return_value=SERVICE.subprocess.CompletedProcess([], 0, valid, "")), mock.patch.object(
+            SERVICE.pathlib.Path, "read_text", return_value="0::/user.slice/user-2002.slice/session-17.scope\n",
+        ), mock.patch.object(
+            SERVICE.pathlib.Path, "read_bytes", return_value=b"DESKTOP_SESSION=ubuntu\0XDG_SESSION_TYPE=wayland\0",
+        ):
+            with self.assertRaisesRegex(SERVICE.ControlError, "not the selected Quattro"):
+                SERVICE.LogindInspector().inspect("17", 2002, True, 1234)
 
     def test_protocol_reader_is_bounded_and_requires_one_record(self) -> None:
         left, right = SERVICE.socket.socketpair()

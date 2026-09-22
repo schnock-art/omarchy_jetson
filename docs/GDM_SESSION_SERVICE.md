@@ -9,10 +9,11 @@ fixed container supervisor, bounded readiness/termination, exact label
 ownership, service cleanup, atomic evidence archival, and post-archive removal
 of only the two owned containers.
 
-Nothing in this slice is installed under `/etc`, `/usr`, or GDM. The service is
-not running on the host, GDM Wayland remains restored to its original disabled
-policy, and `scripts/start-quattro-lab.sh` remains the only supported Quattro
-display launcher.
+The approved S3 service bundle is temporarily installed and running, but it is
+static rather than boot-enabled. No S4 session entry is installed, GDM Wayland
+remains restored to its original disabled policy, and
+`scripts/start-quattro-lab.sh` remains the only supported Quattro display
+launcher.
 
 ## Boundary
 
@@ -39,8 +40,9 @@ exactly these fields:
 }
 ```
 
-The only accepted operations are `start-session-v1`, `stop-session-v1`, and
-`collect-session-v1`. There is no command, argument, image, device, path,
+The only accepted operations are `start-session-v1`, `status-session-v1`,
+`stop-session-v1`, and `collect-session-v1`. There is no command, argument,
+image, device, path,
 environment, prompt, or Docker option field. Unknown versions, extra fields,
 oversized records, malformed IDs, and unknown operations fail closed.
 
@@ -62,6 +64,10 @@ collected again safely. A failed start or stop remains recoverable through the
 fixed stop/collect operations. Rejected malformed, duplicate, or unauthorized
 requests do not change a healthy run's lifecycle state.
 
+For `start-session-v1`, the peer PID must also belong to the exact logind
+session scope named by the request. This prevents an SSH process with the same
+UID from initiating a compositor in an unrelated local desktop session.
+
 ## Installation boundary
 
 The service executes only `/usr/libexec/omarchy-quattro/session-runtime`. It
@@ -72,9 +78,10 @@ the user-writable checkout. Host collectors, the action gateway, and workload
 registry are launched from the checkout only after `setpriv` drops to the
 validated desktop user.
 
-The repository files are not installed yet, so the current host still fails
-closed with `runtime-unavailable`. No group, socket, systemd unit, sudo rule, or
-GDM entry exists. Temporary installation remains an explicit privileged gate.
+The root-owned runtime bundle, dedicated group, static systemd unit, and socket
+are installed and passed their health checkpoint. No sudo rule or GDM entry
+exists. Updating that bundle remains a separate hash-verified, transactional
+operation.
 
 `scripts/quattro-gdm-session-wrapper.py` is the unprivileged protocol client.
 It derives the session ID from `XDG_SESSION_ID`, generates correlation IDs,

@@ -178,8 +178,9 @@ service. S3 now implements the versioned fixed-operation contract, peer/logind
 authorization, atomic state machine, idempotency, recovery rules, unprivileged
 client, and fixed container/evidence supervisor. The fixture and security gates
 pass; see [GDM_SESSION_SERVICE.md](GDM_SESSION_SERVICE.md) and
-[S3_SECURITY_REVIEW.md](S3_SECURITY_REVIEW.md). Nothing is installed yet and
-this does not install a GDM session entry. The five installed files match their
+[S3_SECURITY_REVIEW.md](S3_SECURITY_REVIEW.md). The S3 service is temporarily
+installed, but this does not install a GDM
+session entry. The five installed files match their
 recorded hashes, the service is active but static (not boot-enabled), its
 root-owned group socket is present, and an unauthorized root-peer request
 failed closed without creating run state.
@@ -205,7 +206,14 @@ entry and remains unverified.
 
 ### S4 — Add an opt-in GDM session entry
 
-Status: planned.
+Status: implemented in the repository and ready for transactional temporary
+installation. The wrapper now owns the complete start/status/stop/collect
+lifecycle and start is bound to the GDM peer process's exact logind scope. The
+hash-protected entry conductor is idempotent, preserves GDM/default settings,
+refuses active-run removal, and requires the installed S3 bundle to be
+transactionally refreshed first. See
+[GDM_SESSION_ENTRY.md](GDM_SESSION_ENTRY.md). Physical acceptance remains
+pending and no S4 file is installed yet.
 
 - Package the reviewed wrapper as `Quattro (Jetson preview)` under the normal
   Wayland session mechanism.

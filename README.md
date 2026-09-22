@@ -49,6 +49,7 @@ expanding the accepted MVP claim or weakening the normal Ubuntu recovery path.
 - [Reversible GDM Wayland experiment](docs/GDM_WAYLAND_EXPERIMENT.md)
 - [Narrow GDM session service](docs/GDM_SESSION_SERVICE.md)
 - [S3 session-service security review](docs/S3_SECURITY_REVIEW.md)
+- [Opt-in Quattro GDM session entry](docs/GDM_SESSION_ENTRY.md)
 
 ## Status
 
@@ -138,3 +139,9 @@ service at boot and does not change or restart GDM.
 The checkpoint passes: the installed hashes, static unit state, active
 service, socket ownership/mode, and fail-closed peer authorization were verified.
 Visible compositor acceptance remains an S4 physical GDM-session test.
+
+The S4 repository implementation is now fixture-tested and ready for a
+transactional temporary installation. It adds only an explicitly selected
+`Quattro (Jetson preview)` entry and does not change the remembered/default
+session, automatic login, GDM policy, or boot enablement. See
+[docs/GDM_SESSION_ENTRY.md](docs/GDM_SESSION_ENTRY.md).

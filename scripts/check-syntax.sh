@@ -48,10 +48,13 @@ python3 - "$ROOT_DIR/scripts/quattro-mvp.py" \
   "$ROOT_DIR/scripts/quattro-gdm-session-service.py" \
   "$ROOT_DIR/scripts/quattro-gdm-session-wrapper.py" \
   "$ROOT_DIR/scripts/quattro-gdm-session-install.py" \
+  "$ROOT_DIR/scripts/quattro-gdm-session-entry.py" \
   "$ROOT_DIR/tests/session/test-session-probe.py" \
   "$ROOT_DIR/tests/session/test-gdm-wayland-experiment.py" \
   "$ROOT_DIR/tests/session/test-gdm-session-control.py" \
-  "$ROOT_DIR/tests/session/test-gdm-session-install.py" <<'PY'
+  "$ROOT_DIR/tests/session/test-gdm-session-install.py" \
+  "$ROOT_DIR/tests/session/test-gdm-session-wrapper.py" \
+  "$ROOT_DIR/tests/session/test-gdm-session-entry.py" <<'PY'
 import ast
 import pathlib
 import sys
@@ -78,6 +81,13 @@ done
   exit 1
 }
 jq empty "$ROOT_DIR/mvp/acceptance.json"
+
+[ -f "$ROOT_DIR/gdm/omarchy-quattro.desktop" ] || {
+  echo "Syntax check: missing GDM session entry" >&2
+  exit 1
+}
+grep -Fqx 'Name=Quattro (Jetson preview)' "$ROOT_DIR/gdm/omarchy-quattro.desktop"
+grep -Fqx 'Exec=/usr/libexec/omarchy-quattro/session-wrapper run-session' "$ROOT_DIR/gdm/omarchy-quattro.desktop"
 
 command -v jq >/dev/null 2>&1 || {
   echo "Syntax check: jq is required for JSON validation" >&2

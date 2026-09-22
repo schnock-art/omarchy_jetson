@@ -165,6 +165,25 @@ class Installer:
             raise InstallError("installation state contract mismatch")
         return value
 
+    def _write_installed_file(self, item: InstallFile, data: bytes | None = None) -> None:
+        item.destination.parent.mkdir(parents=True, mode=0o755, exist_ok=True)
+        descriptor, temporary = tempfile.mkstemp(prefix=f".{item.destination.name}.", dir=item.destination.parent)
+        try:
+            os.fchmod(descriptor, item.mode)
+            with os.fdopen(descriptor, "wb") as target:
+                if data is None:
+                    with item.source.open("rb") as source:
+                        shutil.copyfileobj(source, target)
+                else:
+                    target.write(data)
+                target.flush()
+                os.fsync(target.fileno())
+            os.chown(temporary, 0, 0)
+            os.replace(temporary, item.destination)
+        except BaseException:
+            pathlib.Path(temporary).unlink(missing_ok=True)
+            raise
+
     def plan(self) -> dict[str, Any]:
         records = []
         for item in self.files:
@@ -207,19 +226,7 @@ class Installer:
                 self._command(["usermod", "--append", "--groups", GROUP_NAME, DESKTOP_USER])
                 membership_added = True
             for item in self.files:
-                item.destination.parent.mkdir(parents=True, mode=0o755, exist_ok=True)
-                descriptor, temporary = tempfile.mkstemp(prefix=f".{item.destination.name}.", dir=item.destination.parent)
-                try:
-                    os.fchmod(descriptor, item.mode)
-                    with item.source.open("rb") as source, os.fdopen(descriptor, "wb") as target:
-                        shutil.copyfileobj(source, target)
-                        target.flush()
-                        os.fsync(target.fileno())
-                    os.chown(temporary, 0, 0)
-                    os.replace(temporary, item.destination)
-                except BaseException:
-                    pathlib.Path(temporary).unlink(missing_ok=True)
-                    raise
+                self._write_installed_file(item)
                 installed.append(item.destination)
             state = {
                 **plan,
@@ -249,6 +256,56 @@ class Installer:
                 self.system.run(["groupdel", GROUP_NAME])
             self.system.run(["systemctl", "daemon-reload"])
             self._remove_empty_install_directories()
+            raise
+
+    def refresh(self) -> dict[str, Any]:
+        previous = self._load_state()
+        previous_by_path = {record["destination"]: record for record in previous["files"]}
+        expected_paths = {str(item.destination) for item in self.files}
+        if set(previous_by_path) != expected_paths:
+            raise InstallError("installed file set does not match the reviewed service bundle")
+        for path_string, record in previous_by_path.items():
+            if not self._matches(pathlib.Path(path_string), record):
+                raise InstallError(f"installed file changed; refusing refresh: {path_string}")
+        plan = self.plan()
+        backups = {item.destination: item.destination.read_bytes() for item in self.files}
+        old_modes = {item.destination: item.destination.stat().st_mode & 0o777 for item in self.files}
+        self._command(["systemctl", "stop", SERVICE_NAME])
+        try:
+            for item in self.files:
+                self._write_installed_file(item)
+            refreshed = {
+                **plan,
+                "installedAt": previous["installedAt"],
+                "refreshedAt": now(),
+                "groupCreated": previous.get("groupCreated", False),
+                "membershipAdded": previous.get("membershipAdded", False),
+            }
+            atomic_json(self.state_path, refreshed)
+            os.chown(self.state_path, 0, 0)
+            self._command(["systemctl", "daemon-reload"])
+            self._command(["systemctl", "start", SERVICE_NAME])
+            self._wait_for_socket()
+            unit_state = self._unit_file_state()
+            if unit_state != "static" or self._enabled_at_boot(unit_state):
+                raise InstallError(f"unexpected systemd unit-file state after refresh: {unit_state}")
+            return self.status()
+        except BaseException as exc:
+            self.system.run(["systemctl", "stop", SERVICE_NAME])
+            recovery_error: BaseException | None = None
+            try:
+                for item in self.files:
+                    restore = dataclasses.replace(item, mode=old_modes[item.destination])
+                    self._write_installed_file(restore, backups[item.destination])
+                atomic_json(self.state_path, previous)
+                os.chown(self.state_path, 0, 0)
+                self._command(["systemctl", "daemon-reload"])
+                self._command(["systemctl", "start", SERVICE_NAME])
+                self._wait_for_socket()
+            except BaseException as restore_exc:
+                recovery_error = restore_exc
+            if recovery_error:
+                raise InstallError(f"refresh failed ({exc}); restoring the previous service also failed ({recovery_error})") from exc
             raise
 
     def status(self) -> dict[str, Any]:
@@ -294,7 +351,7 @@ class Installer:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("plan", "install", "status", "uninstall"))
+    parser.add_argument("operation", choices=("plan", "install", "refresh", "status", "uninstall"))
     parser.add_argument("--approve", action="store_true")
     args = parser.parse_args()
     try:
@@ -304,7 +361,7 @@ def main() -> int:
         else:
             if os.geteuid() != 0:
                 raise InstallError(f"{args.operation} must run as root")
-            if args.operation in {"install", "uninstall"} and not args.approve:
+            if args.operation in {"install", "refresh", "uninstall"} and not args.approve:
                 raise InstallError(f"{args.operation} requires --approve")
             result = getattr(installer, args.operation)()
         print(json.dumps(result, indent=2, sort_keys=True))

@@ -36,11 +36,12 @@ SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 TTY_RE = re.compile(r"^tty([1-9][0-9]?)$")
 OPERATIONS = {
     "start-session-v1",
+    "status-session-v1",
     "stop-session-v1",
     "collect-session-v1",
 }
 REQUEST_KEYS = {"schemaVersion", "requestId", "operation", "runId", "sessionId"}
-SESSION_PROPERTIES = ("Id", "User", "Active", "State", "Remote", "Type", "Class", "Seat", "TTY", "VTNr", "Service")
+SESSION_PROPERTIES = ("Id", "User", "Active", "State", "Remote", "Type", "Class", "Seat", "TTY", "VTNr", "Service", "Scope")
 
 
 class ControlError(RuntimeError):
@@ -135,11 +136,11 @@ class SessionIdentity:
 
 
 class Inspector(Protocol):
-    def inspect(self, session_id: str, caller_uid: int, require_active: bool) -> SessionIdentity: ...
+    def inspect(self, session_id: str, caller_uid: int, require_active: bool, caller_pid: int | None = None) -> SessionIdentity: ...
 
 
 class LogindInspector:
-    def inspect(self, session_id: str, caller_uid: int, require_active: bool) -> SessionIdentity:
+    def inspect(self, session_id: str, caller_uid: int, require_active: bool, caller_pid: int | None = None) -> SessionIdentity:
         if caller_uid <= 0:
             raise ControlError("unauthorized", "a non-root local desktop user must own the request")
         arguments = ["loginctl", "show-session", session_id]
@@ -173,6 +174,23 @@ class LogindInspector:
         if failed:
             code = "unauthorized" if "owner" in failed else "invalid-session"
             raise ControlError(code, f"session validation failed: {', '.join(failed)}")
+        if require_active:
+            if caller_pid is None or caller_pid <= 1:
+                raise ControlError("unauthorized", "start requires a peer process in the requested logind session")
+            try:
+                cgroup = pathlib.Path(f"/proc/{caller_pid}/cgroup").read_text(encoding="utf-8")
+            except OSError as exc:
+                raise ControlError("unauthorized", "cannot resolve the peer process session") from exc
+            scope = values.get("Scope", "")
+            if not scope or not any(line.rstrip().endswith(f"/{scope}") for line in cgroup.splitlines()):
+                raise ControlError("unauthorized", "peer process does not belong to the requested logind session")
+            try:
+                environment_items = pathlib.Path(f"/proc/{caller_pid}/environ").read_bytes().split(b"\0")
+                environment = dict(item.split(b"=", 1) for item in environment_items if b"=" in item)
+            except (OSError, ValueError) as exc:
+                raise ControlError("unauthorized", "cannot validate the peer process environment") from exc
+            if environment.get(b"DESKTOP_SESSION") != b"omarchy-quattro" or environment.get(b"XDG_SESSION_TYPE") != b"wayland":
+                raise ControlError("unauthorized", "peer process is not the selected Quattro GDM Wayland session")
         return SessionIdentity(
             session_id=session_id,
             uid=owner_uid,
@@ -188,6 +206,7 @@ class Runtime(Protocol):
     def start(self, identity: SessionIdentity, run_id: str) -> None: ...
     def stop(self, identity: SessionIdentity, run_id: str) -> None: ...
     def collect(self, identity: SessionIdentity, run_id: str) -> None: ...
+    def status(self, run_id: str) -> str: ...
 
 
 class FailClosedRuntime:
@@ -203,6 +222,9 @@ class FailClosedRuntime:
         self._reject()
 
     def collect(self, identity: SessionIdentity, run_id: str) -> None:
+        self._reject()
+
+    def status(self, run_id: str) -> str:
         self._reject()
 
 
@@ -329,6 +351,16 @@ class FixedContainerRuntime:
             if path.is_symlink() or not path.is_file():
                 raise ControlError("archive-incomplete", f"runtime archive is missing {required}")
 
+    def status(self, run_id: str) -> str:
+        status = self._status(run_id)
+        if status is None:
+            raise ControlError("runtime-missing", "runtime status is unavailable")
+        state = status.get("state")
+        mapping = {"starting": "starting", "ready": "running", "stopped": "stopped", "failed": "failed"}
+        if state not in mapping:
+            raise ControlError("invalid-runtime-state", "runtime published an unknown state")
+        return mapping[state]
+
 
 class StateStore:
     def __init__(self, root: pathlib.Path):
@@ -375,7 +407,7 @@ class Controller:
         self.inspector = inspector
         self.runtime = runtime
 
-    def handle(self, untrusted: Any, caller_uid: int) -> dict[str, Any]:
+    def handle(self, untrusted: Any, caller_uid: int, caller_pid: int | None = None) -> dict[str, Any]:
         request: dict[str, Any] | None = None
         try:
             request = validate_request(untrusted)
@@ -389,9 +421,11 @@ class Controller:
                         raise ControlError("request-id-conflict", "requestId was already used for another operation")
                     return cached
             require_active = request["operation"] == "start-session-v1"
-            identity = self.inspector.inspect(request["sessionId"], caller_uid, require_active)
+            identity = self.inspector.inspect(request["sessionId"], caller_uid, require_active, caller_pid)
             if request["operation"] == "start-session-v1":
                 result = self._start(request, state, identity)
+            elif request["operation"] == "status-session-v1":
+                result = self._status(request, state)
             elif request["operation"] == "stop-session-v1":
                 result = self._stop(request, state, identity)
             else:
@@ -475,6 +509,21 @@ class Controller:
         self._transition(state, "stopped")
         return self._finish(state, request, "stopped", "fixed Quattro session runtime stopped")
 
+    def _status(self, request: dict[str, Any], state: dict[str, Any] | None) -> dict[str, Any]:
+        if state is None:
+            raise ControlError("unknown-run", "cannot inspect an unknown run")
+        session_state = state["state"]
+        if session_state not in {"collected"}:
+            runtime_state = self.runtime.status(request["runId"])
+            if runtime_state in {"stopped", "failed"} and session_state != runtime_state:
+                self._transition(state, runtime_state)
+                session_state = runtime_state
+            elif runtime_state == "running" and session_state in {"starting", "running"}:
+                session_state = "running"
+        result = terminal_result(request, "succeeded", "status", "Quattro session state reported")
+        result["sessionState"] = session_state
+        return result
+
     def _collect(self, request: dict[str, Any], state: dict[str, Any] | None, identity: SessionIdentity) -> dict[str, Any]:
         if state is None:
             raise ControlError("unknown-run", "cannot collect an unknown run")
@@ -513,10 +562,10 @@ def read_request(connection: socket.socket) -> Any:
         raise ControlError("malformed-request", "request is not valid UTF-8 JSON") from exc
 
 
-def peer_uid(connection: socket.socket) -> int:
+def peer_credentials(connection: socket.socket) -> tuple[int, int]:
     credentials = connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
-    _pid, uid, _gid = struct.unpack("3i", credentials)
-    return uid
+    pid, uid, _gid = struct.unpack("3i", credentials)
+    return pid, uid
 
 
 def serve(controller: Controller, socket_path: pathlib.Path = SOCKET_PATH) -> None:
@@ -553,7 +602,8 @@ def serve(controller: Controller, socket_path: pathlib.Path = SOCKET_PATH) -> No
                 request = None
                 try:
                     request = read_request(connection)
-                    result = controller.handle(request, peer_uid(connection))
+                    caller_pid, caller_uid = peer_credentials(connection)
+                    result = controller.handle(request, caller_uid, caller_pid)
                 except ControlError as exc:
                     result = terminal_result(request if isinstance(request, dict) else None, "failed", exc.code, str(exc))
                 connection.sendall((json.dumps(result, sort_keys=True) + "\n").encode())

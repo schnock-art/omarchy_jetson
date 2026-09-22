@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Quattro (Jetson preview)
+Comment=Explicit preview session for the reversible Jetson Quattro adaptation
+Exec=/usr/libexec/omarchy-quattro/session-wrapper run-session
+TryExec=/usr/libexec/omarchy-quattro/session-wrapper
+Type=Application
+DesktopNames=Quattro;
+X-GDM-SessionRegisters=true

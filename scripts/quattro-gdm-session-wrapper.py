@@ -10,7 +10,9 @@ import os
 import pathlib
 import re
 import socket
+import signal
 import sys
+import time
 import uuid
 from typing import Any
 
@@ -20,7 +22,7 @@ SOCKET_PATH = pathlib.Path("/run/omarchy-quattro/control.sock")
 MAX_RESPONSE_BYTES = 16 * 1024
 SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$")
-OPERATIONS = ("start-session-v1", "stop-session-v1", "collect-session-v1")
+OPERATIONS = ("start-session-v1", "status-session-v1", "stop-session-v1", "collect-session-v1")
 
 
 class WrapperError(RuntimeError):
@@ -85,16 +87,74 @@ def exchange(value: dict[str, Any], socket_path: pathlib.Path = SOCKET_PATH) -> 
     return result
 
 
+def require_success(result: dict[str, Any], operation: str) -> None:
+    if result.get("status") != "succeeded":
+        raise WrapperError(f"{operation} failed: {result.get('code', 'unknown')}: {result.get('message', '')}")
+
+
+def run_session(
+    session_id: str,
+    run_id: str,
+    exchange_fn: Any = exchange,
+    should_stop: Any = lambda: False,
+    sleep_fn: Any = time.sleep,
+) -> int:
+    start = exchange_fn(request("start-session-v1", run_id, session_id))
+    require_success(start, "start-session-v1")
+    stop_sent = False
+    terminal_state = "failed"
+    try:
+        while True:
+            if should_stop() and not stop_sent:
+                stop = exchange_fn(request("stop-session-v1", run_id, session_id))
+                require_success(stop, "stop-session-v1")
+                stop_sent = True
+            status = exchange_fn(request("status-session-v1", run_id, session_id))
+            require_success(status, "status-session-v1")
+            terminal_state = status.get("sessionState", "failed")
+            if terminal_state in {"stopped", "failed", "collected"}:
+                break
+            if terminal_state not in {"starting", "running", "stopping", "collecting"}:
+                raise WrapperError(f"service returned unknown session state: {terminal_state}")
+            sleep_fn(1)
+    finally:
+        if terminal_state not in {"stopped", "failed", "collected"}:
+            stop = exchange_fn(request("stop-session-v1", run_id, session_id))
+            require_success(stop, "stop-session-v1")
+    if terminal_state != "collected":
+        collected = exchange_fn(request("collect-session-v1", run_id, session_id))
+        require_success(collected, "collect-session-v1")
+    return 0 if terminal_state in {"stopped", "collected"} else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=OPERATIONS)
+    parser.add_argument("operation", choices=(*OPERATIONS, "run-session"))
     parser.add_argument("--run-id")
+    parser.add_argument("--session-id")
     args = parser.parse_args()
     try:
+        if args.operation == "run-session":
+            if args.session_id:
+                raise WrapperError("run-session derives its GDM session and does not accept --session-id")
+            if os.environ.get("XDG_SESSION_TYPE") != "wayland":
+                raise WrapperError("run-session requires a GDM Wayland session")
+            stop_requested = False
+
+            def request_stop(_signum: int, _frame: Any) -> None:
+                nonlocal stop_requested
+                stop_requested = True
+
+            signal.signal(signal.SIGINT, request_stop)
+            signal.signal(signal.SIGTERM, request_stop)
+            return run_session(current_session_id(), args.run_id or new_run_id(), should_stop=lambda: stop_requested)
+        if args.operation == "start-session-v1" and args.session_id:
+            raise WrapperError("start-session-v1 derives its current session and does not accept --session-id")
         if args.operation != "start-session-v1" and not args.run_id:
-            raise WrapperError("--run-id is required for stop and collect operations")
+            raise WrapperError("--run-id is required for status, stop, and collect operations")
         run_id = args.run_id or new_run_id()
-        result = exchange(request(args.operation, run_id, current_session_id()))
+        session_id = args.session_id or current_session_id()
+        result = exchange(request(args.operation, run_id, session_id))
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0 if result.get("status") == "succeeded" else 1
     except WrapperError as exc:

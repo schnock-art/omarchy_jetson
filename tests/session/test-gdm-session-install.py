@@ -41,6 +41,7 @@ class FakeSystem:
         elif command[0] == "groupdel":
             self.group = False
         if command[:2] == ["systemctl", "start"] and self.fail_start:
+            self.fail_start = False
             return subprocess.CompletedProcess(command, 1, "", "fixture start failure")
         if command == ["systemctl", "is-enabled", INSTALL.SERVICE_NAME]:
             # systemctl intentionally returns success for a static unit. Static
@@ -137,6 +138,36 @@ class InstallTests(unittest.TestCase):
         plan = self.installer.plan()
         self.assertFalse(plan["changesGdm"])
         self.assertFalse(plan["enabledAtBoot"])
+
+    def test_refresh_replaces_verified_bundle_and_preserves_install_metadata(self) -> None:
+        with mock.patch.object(INSTALL.os, "chown"):
+            self.installer.install()
+            previous_installed_at = self.installer._load_state()["installedAt"]
+            self.files[0].source.write_text("fixture service refreshed\n", encoding="utf-8")
+            status = self.installer.refresh()
+        self.assertTrue(status["filesMatch"])
+        state = self.installer._load_state()
+        self.assertEqual(state["installedAt"], previous_installed_at)
+        self.assertIn("refreshedAt", state)
+        self.assertEqual(self.files[0].destination.read_text(encoding="utf-8"), "fixture service refreshed\n")
+
+    def test_refresh_refuses_modified_installed_file(self) -> None:
+        with mock.patch.object(INSTALL.os, "chown"):
+            self.installer.install()
+        self.files[0].destination.write_text("external change\n", encoding="utf-8")
+        with self.assertRaisesRegex(INSTALL.InstallError, "refusing refresh"):
+            self.installer.refresh()
+
+    def test_failed_refresh_restores_previous_verified_bundle(self) -> None:
+        with mock.patch.object(INSTALL.os, "chown"):
+            self.installer.install()
+            previous = self.files[0].destination.read_bytes()
+            self.files[0].source.write_text("new version that will fail\n", encoding="utf-8")
+            self.system.fail_start = True
+            with self.assertRaisesRegex(INSTALL.InstallError, "fixture start failure"):
+                self.installer.refresh()
+        self.assertEqual(self.files[0].destination.read_bytes(), previous)
+        self.assertTrue(self.installer.status()["filesMatch"])
 
     def test_enabled_unit_state_is_rejected_and_rolled_back(self) -> None:
         system = FakeSystem(unit_state="enabled")
