@@ -21,10 +21,11 @@ SPEC.loader.exec_module(INSTALL)
 
 
 class FakeSystem:
-    def __init__(self, group_exists: bool = False, member: bool = False, fail_start: bool = False):
+    def __init__(self, group_exists: bool = False, member: bool = False, fail_start: bool = False, unit_state: str = "static"):
         self.group = group_exists
         self.member = member
         self.fail_start = fail_start
+        self.unit_state = unit_state
         self.commands: list[list[str]] = []
 
     def run(self, command: list[str], timeout: int = 30) -> subprocess.CompletedProcess[str]:
@@ -41,7 +42,9 @@ class FakeSystem:
         if command[:2] == ["systemctl", "start"] and self.fail_start:
             return subprocess.CompletedProcess(command, 1, "", "fixture start failure")
         if command == ["systemctl", "is-enabled", INSTALL.SERVICE_NAME]:
-            return subprocess.CompletedProcess(command, 1, "disabled\n", "")
+            # systemctl intentionally returns success for a static unit. Static
+            # has no boot target links and is not equivalent to enabled.
+            return subprocess.CompletedProcess(command, 0, f"{self.unit_state}\n", "")
         if command == ["systemctl", "is-active", INSTALL.SERVICE_NAME]:
             return subprocess.CompletedProcess(command, 0, "active\n", "")
         return subprocess.CompletedProcess(command, 0, "", "")
@@ -79,6 +82,7 @@ class InstallTests(unittest.TestCase):
         self.assertTrue(status["filesMatch"])
         self.assertTrue(status["serviceActive"])
         self.assertFalse(status["enabledAtBoot"])
+        self.assertEqual(status["unitFileState"], "static")
         self.assertTrue(self.system.group)
         self.assertTrue(self.system.member)
         for item in self.files:
@@ -90,6 +94,7 @@ class InstallTests(unittest.TestCase):
         self.assertFalse(self.system.member)
         self.assertFalse(self.state.exists())
         self.assertFalse(any(item.destination.exists() for item in self.files))
+        self.assertFalse(self.files[0].destination.parent.exists())
 
     def test_existing_destination_fails_without_overwrite(self) -> None:
         self.files[0].destination.parent.mkdir(parents=True)
@@ -120,6 +125,14 @@ class InstallTests(unittest.TestCase):
         plan = self.installer.plan()
         self.assertFalse(plan["changesGdm"])
         self.assertFalse(plan["enabledAtBoot"])
+
+    def test_enabled_unit_state_is_rejected_and_rolled_back(self) -> None:
+        system = FakeSystem(unit_state="enabled")
+        installer = INSTALL.Installer(tuple(self.files), self.state, system, require_root_ownership=False)
+        with mock.patch.object(INSTALL.os, "chown"), self.assertRaisesRegex(INSTALL.InstallError, "enabled at boot"):
+            installer.install()
+        self.assertFalse(self.state.exists())
+        self.assertFalse(any(item.destination.exists() for item in self.files))
 
 
 if __name__ == "__main__":

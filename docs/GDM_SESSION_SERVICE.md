@@ -135,7 +135,9 @@ sudo ./scripts/quattro-gdm-session-install.py status
 ```
 
 Expected status is `filesMatch: true`, `serviceActive: true`,
-`enabledAtBoot: false`, and `socketPresent: true`. A new login is required
+`unitFileState: static`, `enabledAtBoot: false`, and `socketPresent: true`.
+Systemd reports an install-less unit as `static`; this means it has no boot
+target links and is not enabled. A new login is required
 before the desktop user's newly added supplementary group is effective, but no
 logout is needed merely to verify root-side service health.
 

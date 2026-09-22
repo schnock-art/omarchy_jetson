@@ -124,6 +124,24 @@ class Installer:
         if result.returncode != 0:
             raise InstallError(f"command failed ({' '.join(command)}): {result.stderr.strip()}")
 
+    def _unit_file_state(self) -> str:
+        result = self.system.run(["systemctl", "is-enabled", SERVICE_NAME])
+        state = result.stdout.strip().splitlines()[0] if result.stdout.strip() else "unknown"
+        return state
+
+    @staticmethod
+    def _enabled_at_boot(state: str) -> bool:
+        return state in {"enabled", "enabled-runtime", "linked", "linked-runtime", "alias"}
+
+    def _remove_empty_install_directories(self) -> None:
+        directories = {item.destination.parent for item in self.files}
+        directories.add(self.state_path.parent)
+        for directory in sorted(directories, key=lambda item: len(item.parts), reverse=True):
+            try:
+                directory.rmdir()
+            except OSError:
+                pass
+
     def _load_state(self) -> dict[str, Any]:
         if self.state_path.is_symlink() or not self.state_path.is_file():
             raise InstallError("installation state is missing or unsafe")
@@ -201,9 +219,11 @@ class Installer:
             os.chown(self.state_path, 0, 0)
             self._command(["systemctl", "daemon-reload"])
             self._command(["systemctl", "start", SERVICE_NAME])
-            enabled = self.system.run(["systemctl", "is-enabled", SERVICE_NAME])
-            if enabled.returncode == 0:
-                raise InstallError("service unexpectedly became enabled at boot")
+            unit_state = self._unit_file_state()
+            if self._enabled_at_boot(unit_state):
+                raise InstallError(f"service unexpectedly became enabled at boot ({unit_state})")
+            if unit_state != "static":
+                raise InstallError(f"unexpected systemd unit-file state: {unit_state}")
             return self.status()
         except BaseException:
             self.system.run(["systemctl", "stop", SERVICE_NAME])
@@ -215,6 +235,7 @@ class Installer:
             if group_created:
                 self.system.run(["groupdel", GROUP_NAME])
             self.system.run(["systemctl", "daemon-reload"])
+            self._remove_empty_install_directories()
             raise
 
     def status(self) -> dict[str, Any]:
@@ -227,13 +248,14 @@ class Installer:
             all_match = all_match and matches
             files.append({"path": str(path), "matchesInstalledHash": matches})
         active = self.system.run(["systemctl", "is-active", SERVICE_NAME]).returncode == 0
-        enabled = self.system.run(["systemctl", "is-enabled", SERVICE_NAME]).returncode == 0
+        unit_state = self._unit_file_state()
         return {
             "schemaVersion": SCHEMA_VERSION,
             "installed": True,
             "filesMatch": all_match,
             "serviceActive": active,
-            "enabledAtBoot": enabled,
+            "enabledAtBoot": self._enabled_at_boot(unit_state),
+            "unitFileState": unit_state,
             "socketPresent": pathlib.Path("/run/omarchy-quattro/control.sock").is_socket(),
             "files": files,
         }
@@ -253,11 +275,7 @@ class Installer:
         if state.get("groupCreated"):
             self._command(["groupdel", GROUP_NAME])
         self.state_path.unlink()
-        for directory in (LIBEXEC, self.state_path.parent):
-            try:
-                directory.rmdir()
-            except OSError:
-                pass
+        self._remove_empty_install_directories()
         return {"schemaVersion": SCHEMA_VERSION, "installed": False, "serviceActive": False, "enabledAtBoot": False}
 
 
