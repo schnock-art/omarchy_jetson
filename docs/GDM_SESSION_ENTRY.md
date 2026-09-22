@@ -13,6 +13,8 @@ launcher remains the supported recovery path.
 The verified installation has matching hashes for both root-owned S4 files,
 an active static S3 service and socket, and unchanged GDM and AccountsService
 records. GDM still has `WaylandEnable=false`, so the entry has not run yet.
+Fresh GDM experiment bundles record whether the entry is installed, its hash,
+and whether it matches the repository source before the physical gate begins.
 
 ## Lifecycle
 

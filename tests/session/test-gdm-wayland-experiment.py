@@ -36,6 +36,33 @@ for unsafe in ("", "../escape", "2026 0922", "arbitrary"):
         raise AssertionError("unsafe experiment ID was accepted")
 
 with tempfile.TemporaryDirectory() as directory:
+    fixture = pathlib.Path(directory)
+    installed = fixture / "installed.desktop"
+    source = fixture / "source.desktop"
+    source.write_text("[Desktop Entry]\nName=Quattro\n", encoding="utf-8")
+    original_installed = experiment.SESSION_ENTRY_PATH
+    original_source = experiment.SESSION_ENTRY_SOURCE
+    experiment.SESSION_ENTRY_PATH = installed
+    experiment.SESSION_ENTRY_SOURCE = source
+    try:
+        assert experiment.session_entry_evidence() == {
+            "sessionEntryInstalled": False,
+            "sessionEntrySha256": None,
+            "sessionEntryMatchesRepository": False,
+        }
+        installed.write_bytes(source.read_bytes())
+        evidence = experiment.session_entry_evidence()
+        assert evidence["sessionEntryInstalled"] is True
+        assert evidence["sessionEntryMatchesRepository"] is True
+        assert evidence["sessionEntrySha256"] == experiment.sha256(source.read_bytes())
+        installed.unlink()
+        installed.symlink_to(source)
+        assert experiment.session_entry_evidence()["sessionEntryInstalled"] is False
+    finally:
+        experiment.SESSION_ENTRY_PATH = original_installed
+        experiment.SESSION_ENTRY_SOURCE = original_source
+
+with tempfile.TemporaryDirectory() as directory:
     root = pathlib.Path(directory)
     manifest_path = root / "manifest.json"
     manifest = {

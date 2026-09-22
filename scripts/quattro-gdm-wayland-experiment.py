@@ -21,6 +21,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXPERIMENT_ROOT = ROOT / "artifacts" / "gdm-wayland-experiments"
 CONFIG_PATH = pathlib.Path("/etc/gdm3/custom.conf")
 PROBE = ROOT / "scripts" / "quattro-session-probe.py"
+SESSION_ENTRY_PATH = pathlib.Path("/usr/share/wayland-sessions/omarchy-quattro.desktop")
+SESSION_ENTRY_SOURCE = ROOT / "gdm" / "omarchy-quattro.desktop"
 ID_RE = re.compile(r"^[0-9]{8}-[0-9]{6}(?:-[0-9]+)?$")
 WAYLAND_FALSE_RE = re.compile(r"(?im)^(\s*WaylandEnable\s*=\s*)false(\s*(?:#.*)?)$")
 
@@ -120,6 +122,25 @@ def current_config() -> bytes:
         raise ExperimentError(f"cannot read {CONFIG_PATH}: {exc}") from exc
 
 
+def session_entry_evidence() -> dict[str, Any]:
+    evidence: dict[str, Any] = {
+        "sessionEntryInstalled": False,
+        "sessionEntrySha256": None,
+        "sessionEntryMatchesRepository": False,
+    }
+    if SESSION_ENTRY_PATH.is_symlink() or not SESSION_ENTRY_PATH.is_file():
+        return evidence
+    try:
+        installed = SESSION_ENTRY_PATH.read_bytes()
+        source = SESSION_ENTRY_SOURCE.read_bytes()
+    except OSError:
+        return evidence
+    evidence["sessionEntryInstalled"] = True
+    evidence["sessionEntrySha256"] = sha256(installed)
+    evidence["sessionEntryMatchesRepository"] = installed == source
+    return evidence
+
+
 def require_hash(data: bytes, expected: str, label: str) -> None:
     actual = sha256(data)
     if actual != expected:
@@ -189,7 +210,7 @@ def prepare(experiment_id: str) -> dict[str, Any]:
         "gdmInitiallyActive": gdm.returncode == 0,
         "automaticLoginChanged": False,
         "defaultSessionChanged": False,
-        "sessionEntryInstalled": False,
+        **session_entry_evidence(),
         "events": [{"event": "prepared", "at": now(), "baselineProbeExit": probe.returncode}],
     }
     atomic_json(bundle / "manifest.json", manifest)
