@@ -2,13 +2,17 @@
 
 ## Status
 
-The S4 repository implementation is ready for temporary installation. It adds
+The S4 repository implementation is installed and ready for its physical gate. It adds
 an explicitly selectable **Quattro (Jetson preview)** Wayland session; it does
 not make Quattro preferred, enable automatic login, enable the service at boot,
-or alter GDM's configuration. No S4 file is installed yet.
+or alter GDM's configuration.
 
 Visible behavior remains unverified until the human physical gate. The local-VT
 launcher remains the supported recovery path.
+
+The verified installation has matching hashes for both root-owned S4 files,
+an active static S3 service and socket, and unchanged GDM and AccountsService
+records. GDM still has `WaylandEnable=false`, so the entry has not run yet.
 
 ## Lifecycle
 

@@ -206,14 +206,15 @@ entry and remains unverified.
 
 ### S4 — Add an opt-in GDM session entry
 
-Status: implemented in the repository and ready for transactional temporary
-installation. The wrapper now owns the complete start/status/stop/collect
+Status: implemented and transactionally installed; ready for physical test.
+The wrapper now owns the complete start/status/stop/collect
 lifecycle and start is bound to the GDM peer process's exact logind scope. The
 hash-protected entry conductor is idempotent, preserves GDM/default settings,
 refuses active-run removal, and requires the installed S3 bundle to be
 transactionally refreshed first. See
-[GDM_SESSION_ENTRY.md](GDM_SESSION_ENTRY.md). Physical acceptance remains
-pending and no S4 file is installed yet.
+[GDM_SESSION_ENTRY.md](GDM_SESSION_ENTRY.md). Both installed S4 files match
+their recorded hashes, the static service/socket are healthy, and GDM plus the
+user account defaults remain unchanged. Physical acceptance remains pending.
 
 - Package the reviewed wrapper as `Quattro (Jetson preview)` under the normal
   Wayland session mechanism.
