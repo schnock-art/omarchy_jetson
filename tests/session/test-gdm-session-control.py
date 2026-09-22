@@ -186,6 +186,41 @@ class ControlTests(unittest.TestCase):
             left.close()
             right.close()
 
+    def test_fixed_runtime_collect_requires_terminal_archived_evidence(self) -> None:
+        runtime_root = pathlib.Path(self.temporary.name) / "runtime"
+        archive_root = pathlib.Path(self.temporary.name) / "archive"
+        run_dir = runtime_root / "run-1"
+        run_dir.mkdir(parents=True)
+        (run_dir / "status.json").write_text(json.dumps({
+            "schemaVersion": 1, "runId": "run-1", "state": "stopped", "archiveReady": True,
+        }), encoding="utf-8")
+        archive = archive_root / "run-1"
+        archive.mkdir(parents=True)
+        identity = SERVICE.SessionIdentity("17", 2002, "seat0", "tty2", 2, "wayland", "gdm-password")
+        runtime = SERVICE.FixedContainerRuntime(pathlib.Path("/fixed/helper"), runtime_root, archive_root)
+        with self.assertRaisesRegex(SERVICE.ControlError, "session.json"):
+            runtime.collect(identity, "run-1")
+        (archive / "session.json").write_text("{}\n", encoding="utf-8")
+        (archive / "acceptance-manifest.json").write_text("{}\n", encoding="utf-8")
+        runtime.collect(identity, "run-1")
+
+    def test_fixed_runtime_start_has_one_fixed_supervisor_command(self) -> None:
+        runtime_root = pathlib.Path(self.temporary.name) / "runtime"
+        runtime = SERVICE.FixedContainerRuntime(pathlib.Path("/fixed/session-runtime"), runtime_root, pathlib.Path(self.temporary.name) / "archive")
+        runtime._require_helper = mock.Mock()  # type: ignore[method-assign]
+        runtime._wait_for = mock.Mock(return_value={"state": "ready"})  # type: ignore[method-assign]
+        process = mock.Mock()
+        process.poll.return_value = None
+        identity = SERVICE.SessionIdentity("17", 2002, "seat0", "tty2", 2, "wayland", "gdm-password")
+        passwd = mock.Mock(pw_gid=2002)
+        with mock.patch.object(SERVICE.pwd, "getpwuid", return_value=passwd), mock.patch.object(
+            SERVICE.subprocess, "Popen", return_value=process,
+        ) as popen:
+            runtime.start(identity, "run-1")
+        command = popen.call_args.args[0]
+        self.assertEqual(command, ["/fixed/session-runtime", "supervise", "run-1", "17", "2002", "2002", "tty2"])
+        self.assertNotIn("shell", popen.call_args.kwargs)
+
         left, right = SERVICE.socket.socketpair()
         try:
             right.sendall(b"{}\n{}")

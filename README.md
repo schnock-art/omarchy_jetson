@@ -48,6 +48,7 @@ expanding the accepted MVP claim or weakening the normal Ubuntu recovery path.
 - [GDM/logind feasibility decision](docs/SESSION_INTEGRATION_DECISION.md)
 - [Reversible GDM Wayland experiment](docs/GDM_WAYLAND_EXPERIMENT.md)
 - [Narrow GDM session service](docs/GDM_SESSION_SERVICE.md)
+- [S3 session-service security review](docs/S3_SECURITY_REVIEW.md)
 
 ## Status
 
@@ -123,7 +124,8 @@ The S2 read-only probe found that the logind seat and device model support the
 planned narrow host-service architecture. Reversible experiment
 `20260922-090045` then verified normal Ubuntu Wayland and Xorg sessions,
 NVIDIA/CUDA health, GDM recovery, and byte-for-byte restoration of the original
-GDM configuration. S2 is complete; S3 implements and fixture-tests the fixed,
-allowlisted host service and unprivileged wrapper without installing a GDM
-session entry. See
+GDM configuration. S2 is complete; the fixed, allowlisted S3 host service,
+runtime supervisor, and unprivileged wrapper are implemented and pass their
+fixture/security gates. They are not installed. The next checkpoint is a
+temporary privileged service test without a GDM session entry. See
 [docs/SESSION_INTEGRATION_DECISION.md](docs/SESSION_INTEGRATION_DECISION.md).

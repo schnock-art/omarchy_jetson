@@ -9,13 +9,16 @@ import grp
 import json
 import os
 import pathlib
+import pwd
 import re
 import signal
 import socket
+import stat
 import struct
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -25,6 +28,9 @@ MAX_REQUEST_BYTES = 16 * 1024
 SOCKET_PATH = pathlib.Path("/run/omarchy-quattro/control.sock")
 STATE_ROOT = pathlib.Path("/run/omarchy-quattro/sessions")
 SOCKET_GROUP = "omarchy-quattro"
+RUNTIME_HELPER = pathlib.Path("/usr/libexec/omarchy-quattro/session-runtime")
+RUNTIME_ROOT = pathlib.Path("/run/omarchy-quattro/runtime")
+ARCHIVE_ROOT = pathlib.Path("/home/looco/repos/omarchy_jetson/artifacts/quattro-runs")
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$")
 SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 TTY_RE = re.compile(r"^tty([1-9][0-9]?)$")
@@ -198,6 +204,130 @@ class FailClosedRuntime:
 
     def collect(self, identity: SessionIdentity, run_id: str) -> None:
         self._reject()
+
+
+class FixedContainerRuntime:
+    """Invoke only the reviewed, root-owned runtime supervisor."""
+
+    START_TIMEOUT = 45
+    STOP_TIMEOUT = 30
+
+    def __init__(
+        self,
+        helper: pathlib.Path = RUNTIME_HELPER,
+        runtime_root: pathlib.Path = RUNTIME_ROOT,
+        archive_root: pathlib.Path = ARCHIVE_ROOT,
+    ):
+        self.helper = helper
+        self.runtime_root = runtime_root
+        self.archive_root = archive_root
+        self.processes: dict[str, subprocess.Popen[bytes]] = {}
+
+    def _require_helper(self) -> None:
+        try:
+            info = self.helper.stat()
+        except OSError as exc:
+            raise ControlError("runtime-unavailable", "the fixed runtime helper is not installed") from exc
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022 or not os.access(self.helper, os.X_OK):
+            raise ControlError("unsafe-runtime", "runtime helper must be root-owned, executable, and not group/world writable")
+
+    def _run_dir(self, run_id: str) -> pathlib.Path:
+        validate_identifier(run_id, "runId")
+        return self.runtime_root / run_id
+
+    def _status(self, run_id: str) -> dict[str, Any] | None:
+        path = self._run_dir(run_id) / "status.json"
+        if path.is_symlink():
+            raise ControlError("unsafe-runtime-state", "runtime status must not be a symlink")
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return None
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ControlError("invalid-runtime-state", "runtime status is unreadable") from exc
+        if not isinstance(value, dict) or value.get("schemaVersion") != SCHEMA_VERSION or value.get("runId") != run_id:
+            raise ControlError("invalid-runtime-state", "runtime status does not match the run")
+        return value
+
+    def _wait_for(self, run_id: str, accepted: set[str], timeout: int) -> dict[str, Any]:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            status = self._status(run_id)
+            if status and status.get("state") in accepted:
+                return status
+            process = self.processes.get(run_id)
+            if process is not None and process.poll() is not None and not status:
+                raise ControlError("runtime-failure", "runtime supervisor exited before publishing status")
+            time.sleep(0.1)
+        raise TimeoutError(f"runtime did not reach {sorted(accepted)} within {timeout} seconds")
+
+    def start(self, identity: SessionIdentity, run_id: str) -> None:
+        self._require_helper()
+        run_dir = self._run_dir(run_id)
+        self.runtime_root.mkdir(parents=True, mode=0o700, exist_ok=True)
+        os.chmod(self.runtime_root, 0o700)
+        run_dir.mkdir(mode=0o700, exist_ok=False)
+        os.chmod(run_dir, 0o700)
+        log_path = run_dir / "supervisor.log"
+        command = [
+            str(self.helper), "supervise", run_id, identity.session_id,
+            str(identity.uid), str(pwd.getpwuid(identity.uid).pw_gid), identity.tty,
+        ]
+        with log_path.open("ab", buffering=0) as log:
+            process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log, close_fds=True)
+        self.processes[run_id] = process
+        try:
+            status = self._wait_for(run_id, {"ready", "failed"}, self.START_TIMEOUT)
+        except Exception:
+            if process.poll() is None:
+                process.terminate()
+            raise
+        if status["state"] != "ready":
+            raise ControlError("runtime-failure", "runtime supervisor failed during startup")
+
+    def _validated_pid(self, run_id: str, status: dict[str, Any]) -> int | None:
+        pid = status.get("supervisorPid")
+        if not isinstance(pid, int) or pid <= 1:
+            return None
+        try:
+            command_line = pathlib.Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+        except OSError:
+            return None
+        expected_helper = os.fsencode(str(self.helper))
+        expected_run = os.fsencode(run_id)
+        if expected_helper not in command_line or expected_run not in command_line:
+            raise ControlError("unsafe-runtime-state", "recorded supervisor PID does not match the fixed helper and run")
+        return pid
+
+    def stop(self, identity: SessionIdentity, run_id: str) -> None:
+        del identity
+        status = self._status(run_id)
+        if status is None:
+            raise ControlError("runtime-missing", "runtime status is unavailable")
+        if status.get("state") in {"stopped", "failed"}:
+            return
+        pid = self._validated_pid(run_id, status)
+        if pid is None:
+            raise ControlError("runtime-orphaned", "runtime supervisor is unavailable for bounded cleanup")
+        os.kill(pid, signal.SIGTERM)
+        self._wait_for(run_id, {"stopped", "failed"}, self.STOP_TIMEOUT)
+        process = self.processes.pop(run_id, None)
+        if process is not None:
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                raise ControlError("runtime-timeout", "runtime supervisor did not exit after cleanup")
+
+    def collect(self, identity: SessionIdentity, run_id: str) -> None:
+        del identity
+        status = self._status(run_id)
+        if not status or status.get("state") not in {"stopped", "failed"} or status.get("archiveReady") is not True:
+            raise ControlError("archive-unavailable", "runtime has not published a complete archive")
+        archive = self.archive_root / run_id
+        for required in ("session.json", "acceptance-manifest.json"):
+            path = archive / required
+            if path.is_symlink() or not path.is_file():
+                raise ControlError("archive-incomplete", f"runtime archive is missing {required}")
 
 
 class StateStore:
@@ -438,7 +568,7 @@ def main() -> int:
     args = parser.parse_args()
     del args
     try:
-        controller = Controller(StateStore(STATE_ROOT), LogindInspector(), FailClosedRuntime())
+        controller = Controller(StateStore(STATE_ROOT), LogindInspector(), FixedContainerRuntime())
         serve(controller)
         return 0
     except (ControlError, OSError, KeyError) as exc:

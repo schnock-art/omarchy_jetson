@@ -2,11 +2,12 @@
 
 ## Status
 
-S3 implementation is in progress. The first slice implements and fixture-tests
-the versioned control contract, peer authorization, logind validation, atomic
-state transitions, idempotency, and unprivileged client. The runtime adapter is
-deliberately fail-closed until the fixed container startup and evidence paths
-are extracted from the accepted lab launcher and reviewed as the second slice.
+S3b is implemented and fixture-tested. The first slice implemented the
+versioned control contract, peer authorization, logind validation, atomic state
+transitions, idempotency, and unprivileged client. The second slice adds the
+fixed container supervisor, bounded readiness/termination, exact label
+ownership, service cleanup, atomic evidence archival, and post-archive removal
+of only the two owned containers.
 
 Nothing in this slice is installed under `/etc`, `/usr`, or GDM. The service is
 not running on the host, GDM Wayland remains restored to its original disabled
@@ -61,31 +62,46 @@ collected again safely. A failed start or stop remains recoverable through the
 fixed stop/collect operations. Rejected malformed, duplicate, or unauthorized
 requests do not change a healthy run's lifecycle state.
 
-## Current fail-closed behavior
+## Installation boundary
 
-`scripts/quattro-gdm-session-service.py` currently uses a fail-closed runtime
-adapter. Even if it were started manually, `start-session-v1` cannot launch a
-container and returns `runtime-unavailable`. This is intentional: enabling a
-root service before its Docker argument list, child ownership, timeouts,
-cleanup, and archival are reviewed would cross the project's authority
-boundary.
+The service executes only `/usr/libexec/omarchy-quattro/session-runtime`. It
+rejects a missing helper and rejects any helper that is not a regular,
+root-owned executable with no group/world write bit. The supervisor applies the
+same rule to its installed lifecycle modules. It never sources shell code from
+the user-writable checkout. Host collectors, the action gateway, and workload
+registry are launched from the checkout only after `setpriv` drops to the
+validated desktop user.
+
+The repository files are not installed yet, so the current host still fails
+closed with `runtime-unavailable`. No group, socket, systemd unit, sudo rule, or
+GDM entry exists. Temporary installation remains an explicit privileged gate.
 
 `scripts/quattro-gdm-session-wrapper.py` is the unprivileged protocol client.
 It derives the session ID from `XDG_SESSION_ID`, generates correlation IDs,
 uses only the fixed socket, bounds the response, and rejects correlation
 mismatches. It is not a GDM session entry.
 
-## Next S3 slice
+## Fixed runtime
 
-The next slice will extract a fixed GDM-session runtime adapter that:
+`scripts/quattro-gdm-session-runtime.sh`:
 
-1. derives the assigned VT and device set only from the validated identity;
-2. starts only the reviewed Hyprland and Quickshell images and fixed mounts;
-3. owns bounded child/container shutdown and interruption recovery;
-4. archives into the existing per-run evidence contract atomically; and
-5. exposes no caller-selected executable, argument, path, image, device, or
-   environment value.
+1. receives only the validated run/session identity selected by the service;
+2. starts only `hyprland:phase2-runtime` and
+   `quickshell:phase1-hypr-lab`, under fixed names and labels;
+3. keeps network disabled and mounts Omarchy, runtime tests, the user bus, and
+   PipeWire through the existing reviewed boundaries;
+4. passes only the assigned session TTY plus fixed tty0, DRM, input, and NVIDIA
+   access to the compositor;
+5. supervises the existing collectors and action gateway;
+6. stops only containers whose exact run label matches;
+7. atomically archives service state, logs, inspection data, workload state,
+   acceptance contract, revision, and terminal session state; and
+8. removes the owned stopped containers and runtime volume only after the
+   archive succeeds.
 
-Only after its normal, malformed, duplicate, unauthorized, timeout,
-interruption, and recovery fixtures pass can S3 undergo its security review.
-S4 installation remains frozen until then.
+Normal, malformed, duplicate, unauthorized replay, timeout, interruption,
+failed-start recovery, idempotent cleanup, fixed-helper, archive, and unsafe
+identifier fixtures pass. The focused review is recorded in
+[S3_SECURITY_REVIEW.md](S3_SECURITY_REVIEW.md). The next gate is a reviewed,
+temporary root-owned installation followed by a controlled physical session;
+it must not add the S4 GDM entry or change GDM policy yet.
