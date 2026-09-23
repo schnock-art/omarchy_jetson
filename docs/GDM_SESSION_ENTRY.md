@@ -27,6 +27,17 @@ installed confinement. The replacement keeps peer credentials, active logind
 session checks, and exact cgroup membership, but validates GDM's selected
 session using the bounded root-owned AccountsService record instead.
 
+On 2026-09-23, the first retry reached a separate race: the root service spent
+longer than the wrapper's 15-second response wait while startup was in flight;
+the client disconnected and an unhandled broken pipe restarted the service.
+The immediate second selection reached Quattro and produced archived shell,
+telemetry, workload, action, and agent-status evidence, but it is still only
+`awaiting-visual-check`. The follow-up fix gives the wrapper a 60-second
+bounded response wait, treats a disconnected client as one failed delivery
+rather than a service failure, and writes the evaluator's canonical log names
+alongside the GDM-specific container evidence. It must be refreshed into the
+installed S3 bundle before the final retry.
+
 ## Lifecycle
 
 GDM launches the installed unprivileged wrapper inside the selected local

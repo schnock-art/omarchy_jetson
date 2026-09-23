@@ -36,6 +36,9 @@ class Exchange:
 
 
 class WrapperTests(unittest.TestCase):
+    def test_startup_response_timeout_covers_the_service_start_bound(self) -> None:
+        self.assertGreaterEqual(WRAPPER.RESPONSE_TIMEOUT_SECONDS, 45)
+
     def test_normal_session_waits_for_exit_and_collects(self) -> None:
         exchange = Exchange(["running", "stopped"])
         result = WRAPPER.run_session("17", "run-1", exchange_fn=exchange, sleep_fn=lambda _seconds: None)

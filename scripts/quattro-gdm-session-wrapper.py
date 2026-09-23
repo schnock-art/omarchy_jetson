@@ -20,6 +20,7 @@ from typing import Any
 SCHEMA_VERSION = 1
 SOCKET_PATH = pathlib.Path("/run/omarchy-quattro/control.sock")
 MAX_RESPONSE_BYTES = 16 * 1024
+RESPONSE_TIMEOUT_SECONDS = 60
 SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$")
 OPERATIONS = ("start-session-v1", "status-session-v1", "stop-session-v1", "collect-session-v1")
@@ -60,7 +61,10 @@ def exchange(value: dict[str, Any], socket_path: pathlib.Path = SOCKET_PATH) -> 
     payload = (json.dumps(value, separators=(",", ":")) + "\n").encode()
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-            connection.settimeout(15)
+            # start-session-v1 waits for the fixed supervisor's bounded
+            # readiness check (45 seconds); a shorter client timeout can leave
+            # a successfully starting session without its correlated response.
+            connection.settimeout(RESPONSE_TIMEOUT_SECONDS)
             connection.connect(str(socket_path))
             connection.sendall(payload)
             chunks = bytearray()

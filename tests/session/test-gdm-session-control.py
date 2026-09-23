@@ -239,6 +239,15 @@ class ControlTests(unittest.TestCase):
             left.close()
             right.close()
 
+    def test_disconnected_peer_does_not_terminate_the_service(self) -> None:
+        connection = mock.Mock()
+        connection.sendall.side_effect = BrokenPipeError()
+        self.assertFalse(SERVICE.send_result(connection, {"status": "succeeded"}))
+        connection.sendall.side_effect = ConnectionResetError()
+        self.assertFalse(SERVICE.send_result(connection, {"status": "succeeded"}))
+        connection.sendall.side_effect = None
+        self.assertTrue(SERVICE.send_result(connection, {"status": "succeeded"}))
+
     def test_fixed_runtime_collect_requires_terminal_archived_evidence(self) -> None:
         runtime_root = pathlib.Path(self.temporary.name) / "runtime"
         archive_root = pathlib.Path(self.temporary.name) / "archive"

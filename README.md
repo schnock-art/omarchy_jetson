@@ -143,9 +143,11 @@ Visible compositor acceptance remains an S4 physical GDM-session test.
 The S4 entry is transactionally installed. Its first physical start attempt
 failed closed before runtime launch because the confined service could not read
 the wrapper's process environment. The repository fix now validates GDM's
-root-owned AccountsService selection while retaining peer/logind/cgroup checks;
-it passes fixtures and awaits an installed-bundle refresh and retry. S4 adds
-only an explicitly selected
+root-owned AccountsService selection while retaining peer/logind/cgroup checks.
+A follow-up physical retry reached the Quattro shell, but also exposed a
+response-timeout/disconnect race; its fixture-tested reliability fix awaits an
+installed-bundle refresh before the final acceptance retry. S4 adds only an
+explicitly selected
 `Quattro (Jetson preview)` entry and does not change the remembered/default
 session, automatic login, GDM policy, or boot enablement. See
 [docs/GDM_SESSION_ENTRY.md](docs/GDM_SESSION_ENTRY.md).

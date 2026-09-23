@@ -25,5 +25,7 @@ grep -Fq 'HYPR_IMAGE=hyprland:phase2-runtime' "$RUNTIME" || fail 'fixed Hyprland
 grep -Fq 'QS_IMAGE=quickshell:phase1-hypr-lab' "$RUNTIME" || fail 'fixed Quickshell image missing'
 grep -Fq -- '--network none' "$RUNTIME" || fail 'network isolation missing'
 grep -Fq 'src=$OMARCHY_ROOT,dst=/omarchy,readonly' "$RUNTIME" || fail 'read-only Omarchy mount missing'
+grep -Fq 'quickshell-quattro-smoke.log' "$RUNTIME" || fail 'canonical Quickshell archive missing'
+grep -Fq 'hyprland-phase2-drm.log' "$RUNTIME" || fail 'canonical Hyprland archive missing'
 
 echo 'GDM session fixed-runtime fixture checks passed'

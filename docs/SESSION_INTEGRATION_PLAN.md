@@ -219,7 +219,12 @@ their install-time recorded hashes, and the static service/socket remained
 healthy. The failure was traced to the confined service being unable to read
 the GDM wrapper's `/proc/PID/environ`; the replacement validates the protected
 AccountsService selection while retaining peer, logind, and exact-cgroup
-checks. Physical acceptance remains pending.
+checks. The follow-up retry reached the Quattro shell, but its first selection
+exposed a wrapper response timeout and unhandled service broken pipe; the
+second selection produced an `awaiting-visual-check` archive. The repository
+now has a fixture-tested timeout/disconnect and canonical-evidence fix which
+must be refreshed before the final physical acceptance retry. Physical
+acceptance remains pending.
 
 - Package the reviewed wrapper as `Quattro (Jetson preview)` under the normal
   Wayland session mechanism.

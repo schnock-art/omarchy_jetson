@@ -92,9 +92,14 @@ runtime_archive() {
   quattro_archive_file "$CHECKOUT/artifacts/workloads/registry.json" "$ARCHIVE_DIR" workload-registry.json || archive_failed=1
   if runtime_owned_container "$QS_CONTAINER"; then
     quattro_capture_container "$QS_CONTAINER" "$ARCHIVE_DIR" || archive_failed=1
+    # The evaluator's acceptance contract predates the GDM-specific container
+    # names. Preserve those canonical evidence names without changing the
+    # source container identity recorded alongside them.
+    quattro_archive_file "$ARCHIVE_DIR/$QS_CONTAINER.log" "$ARCHIVE_DIR" quickshell-quattro-smoke.log || archive_failed=1
   fi
   if runtime_owned_container "$HYPR_CONTAINER"; then
     quattro_capture_container "$HYPR_CONTAINER" "$ARCHIVE_DIR" || archive_failed=1
+    quattro_archive_file "$ARCHIVE_DIR/$HYPR_CONTAINER.log" "$ARCHIVE_DIR" hyprland-phase2-drm.log || archive_failed=1
   fi
   quattro_archive_file "$CHECKOUT/mvp/acceptance.json" "$ARCHIVE_DIR" acceptance-manifest.json || archive_failed=1
   revision=$(git -C "$CHECKOUT" rev-parse HEAD 2>/dev/null || echo unavailable)

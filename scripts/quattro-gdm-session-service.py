@@ -613,6 +613,17 @@ def peer_credentials(connection: socket.socket) -> tuple[int, int]:
     return pid, uid
 
 
+def send_result(connection: socket.socket, result: dict[str, Any]) -> bool:
+    try:
+        connection.sendall((json.dumps(result, sort_keys=True) + "\n").encode())
+    except (BrokenPipeError, ConnectionResetError):
+        # The client may time out or GDM may tear down a failed session while a
+        # bounded runtime start is completing. The result is already recorded;
+        # one disconnected peer must not terminate the root control service.
+        return False
+    return True
+
+
 def serve(controller: Controller, socket_path: pathlib.Path = SOCKET_PATH) -> None:
     if os.geteuid() != 0:
         raise ControlError("root-required", "the session service must run as root")
@@ -651,7 +662,7 @@ def serve(controller: Controller, socket_path: pathlib.Path = SOCKET_PATH) -> No
                     result = controller.handle(request, caller_uid, caller_pid)
                 except ControlError as exc:
                     result = terminal_result(request if isinstance(request, dict) else None, "failed", exc.code, str(exc))
-                connection.sendall((json.dumps(result, sort_keys=True) + "\n").encode())
+                send_result(connection, result)
     finally:
         server.close()
         socket_path.unlink(missing_ok=True)
