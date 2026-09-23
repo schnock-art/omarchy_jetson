@@ -77,7 +77,9 @@ If host policy later supplies the reviewed AppArmor profile, remove this
 compatibility override and re-run the M4 interruption and write-boundary tests.
 
 The detached adapter waits at most two hours for archival and owns Codex through
-a dedicated process group with a 30-minute runtime bound. Timeout or an
+a dedicated process group with a 30-minute runtime bound. It may be approved
+before the archive directory exists; `--wait-for-session` waits for that
+directory and then for its terminal session record. Timeout or an
 explicit stop terminates that group and atomically changes `agent-run.json` to
 `failed`; an interrupted agent must never remain `running`. A deliberate
 agent-authored `waiting-for-human` result is preserved rather than overwritten

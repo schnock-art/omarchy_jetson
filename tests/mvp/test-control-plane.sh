@@ -63,6 +63,17 @@ env OMARCHY_PATH="$test_root/omarchy" FAKE_CODEX_MODE=complete \
 jq -e '.state == "completed"' "$test_root/artifacts/quattro-runs/complete/agent-run.json" >/dev/null
 test -s "$test_root/artifacts/quattro-runs/complete/agent-summary.md"
 
+env OMARCHY_PATH="$test_root/omarchy" FAKE_CODEX_MODE=complete \
+  bash "$test_root/scripts/quattro-agent-adapter.sh" --run-id delayed --approve --wait-for-session --timeout 20 &
+delayed_pid=$!
+sleep 1
+kill -0 "$delayed_pid"
+mkdir -p "$test_root/artifacts/quattro-runs/delayed"
+printf '%s\n' '{"schemaVersion":1,"state":"awaiting-visual-check"}' \
+  >"$test_root/artifacts/quattro-runs/delayed/session.json"
+wait "$delayed_pid"
+jq -e '.state == "completed"' "$test_root/artifacts/quattro-runs/delayed/agent-run.json" >/dev/null
+
 marker="$test_root/interrupted.marker"
 env OMARCHY_PATH="$test_root/omarchy" FAKE_CODEX_MODE=wait FAKE_CODEX_MARKER="$marker" \
   bash "$test_root/scripts/quattro-agent-adapter.sh" --run-id interrupted --approve --timeout 20 &

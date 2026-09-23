@@ -37,12 +37,9 @@ case "$RUN_ID" in *[!A-Za-z0-9_-]*|'') echo "Invalid run ID." >&2; exit 2 ;; esa
 case "$MAX_SECONDS" in ''|*[!0-9]*) echo "Timeout must be an integer." >&2; exit 2 ;; esac
 
 RUN_DIR="$ROOT_DIR/artifacts/quattro-runs/$RUN_ID"
-LOCK_DIR="$RUN_DIR/agent.lock"
-STATUS_FILE="$RUN_DIR/agent-run.json"
-LOG_FILE="$RUN_DIR/agent.log"
-SUMMARY_FILE="$RUN_DIR/agent-summary.md"
-[ -d "$RUN_DIR" ] || { echo "Run archive does not exist: $RUN_ID" >&2; exit 1; }
 if [ "$STOP" -eq 1 ]; then
+  [ -d "$RUN_DIR" ] || { echo "Run archive does not exist: $RUN_ID" >&2; exit 1; }
+  STATUS_FILE="$RUN_DIR/agent-run.json"
   adapter_pid=$(jq -r '.pid // empty' "$STATUS_FILE" 2>/dev/null || true)
   case "$adapter_pid" in
     ''|*[!0-9]*) echo "No active adapter PID is recorded for run $RUN_ID." >&2; exit 1 ;;
@@ -55,6 +52,24 @@ if [ "$STOP" -eq 1 ]; then
   echo "Recorded MVP adapter $adapter_pid is no longer running." >&2
   exit 1
 fi
+
+# The panel approves the adapter while Quattro is still running. The runtime
+# creates the immutable archive only during its normal shutdown, so waiting for
+# the archive directory is part of --wait-for-session rather than a failure.
+waited=0
+while [ ! -d "$RUN_DIR" ] || [ -L "$RUN_DIR" ]; do
+  [ "$WAIT_FOR_SESSION" -eq 1 ] || { echo "Run archive does not exist: $RUN_ID" >&2; exit 1; }
+  if [ "$waited" -ge "$SESSION_WAIT_SECONDS" ]; then
+    echo "Run archive did not appear within $SESSION_WAIT_SECONDS seconds" >&2
+    exit 124
+  fi
+  sleep 2
+  waited=$((waited + 2))
+done
+LOCK_DIR="$RUN_DIR/agent.lock"
+STATUS_FILE="$RUN_DIR/agent-run.json"
+LOG_FILE="$RUN_DIR/agent.log"
+SUMMARY_FILE="$RUN_DIR/agent-summary.md"
 mkdir "$LOCK_DIR" 2>/dev/null || { echo "Another agent already owns run $RUN_ID." >&2; exit 1; }
 cleanup() { rmdir "$LOCK_DIR" 2>/dev/null || true; }
 
