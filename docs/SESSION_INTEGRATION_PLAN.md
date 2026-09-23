@@ -206,9 +206,9 @@ entry and remains unverified.
 
 ### S4 — Add an opt-in GDM session entry
 
-Status: installed; first physical start failed closed before runtime launch.
-The repository authorization fix passes fixtures but must be transactionally
-refreshed before the physical gate is retried.
+Status: physically verified. Final run `20260923-193649-29443` is complete
+with a passing stored acceptance result, completed agent review, explicit human
+visual assertions, and byte-for-byte GDM rollback followed by Ubuntu on Xorg.
 The wrapper now owns the complete start/status/stop/collect
 lifecycle and start is bound to the GDM peer process's exact logind scope. The
 hash-protected entry conductor is idempotent, preserves GDM/default settings,
@@ -222,9 +222,9 @@ AccountsService selection while retaining peer, logind, and exact-cgroup
 checks. The follow-up retry reached the Quattro shell, but its first selection
 exposed a wrapper response timeout and unhandled service broken pipe; the
 second selection produced an `awaiting-visual-check` archive. The repository
-now has a fixture-tested timeout/disconnect and canonical-evidence fix which
-must be refreshed before the final physical acceptance retry. Physical
-acceptance remains pending.
+now has a fixture-tested timeout/disconnect and canonical-evidence fix. The
+refreshed final retry completed without a service restart; the initial failed
+attempts remain retained as historical evidence. S4 acceptance is complete.
 
 - Package the reviewed wrapper as `Quattro (Jetson preview)` under the normal
   Wayland session mechanism.

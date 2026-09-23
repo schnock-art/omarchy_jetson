@@ -2,15 +2,16 @@
 
 ## Status
 
-The S4 session entry is installed, but the first physical start attempt failed
-closed before the runtime began. The repository fix is implemented and awaits
-a transactional S3 refresh before a new physical gate. S4 adds
+The S4 session entry is installed and physically verified. Final run
+`20260923-193649-29443` completed the archived acceptance contract, including
+the bounded Codex archive review and explicit human visual assertions. S4 adds
 an explicitly selectable **Quattro (Jetson preview)** Wayland session; it does
 not make Quattro preferred, enable automatic login, enable the service at boot,
 or alter GDM's configuration.
 
-Visible behavior remains unverified until the human physical gate. The local-VT
-launcher remains the supported recovery path.
+The GDM Wayland experiment `20260923-192434` is rolled back: its original GDM
+file hash is restored, GDM is active, and Ubuntu on Xorg was verified after the
+test. The local-VT launcher remains the supported recovery path.
 
 The verified installation has matching hashes for both root-owned S4 files,
 an active static S3 service and socket, and unchanged GDM and AccountsService
@@ -37,6 +38,13 @@ bounded response wait, treats a disconnected client as one failed delivery
 rather than a service failure, and writes the evaluator's canonical log names
 alongside the GDM-specific container evidence. It must be refreshed into the
 installed S3 bundle before the final retry.
+
+The final retry used that refreshed bundle and completed without a service
+restart. Its archived evaluator found all required artifacts and milestones,
+no configured fatal pattern, a completed harmless workload and Codex refresh,
+and a completed MVP agent. The human confirmed rendering, panels, input,
+audio, fixed actions, and `Super+Shift+E` return to GDM. The stored result is
+passing; the historical failed attempts above remain retained as evidence.
 
 ## Lifecycle
 
