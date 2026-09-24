@@ -81,10 +81,12 @@ the user-writable checkout. Host collectors, the action gateway, and workload
 registry are launched from the checkout only after `setpriv` drops to the
 validated desktop user.
 
-The root-owned runtime bundle, dedicated group, static systemd unit, and socket
-are installed and passed their health checkpoint. No sudo rule or GDM entry
-exists. Updating that bundle remains a separate hash-verified, transactional
-operation.
+The root-owned runtime bundle, dedicated group, static systemd service, and
+socket-activated listener are installed as one hash-verified bundle. The socket
+may be enabled at boot so a selected GDM session can reach the fixed service;
+the service itself remains static and does not start Quattro or select a login
+session at boot. No sudo rule or GDM entry is implied by this bundle. Updating
+it remains a separate hash-verified, transactional operation.
 
 `scripts/quattro-gdm-session-wrapper.py` is the unprivileged protocol client.
 It derives the session ID from `XDG_SESSION_ID`, generates correlation IDs,
@@ -102,11 +104,13 @@ mismatches. It is not a GDM session entry.
    PipeWire through the existing reviewed boundaries;
 4. passes only the assigned session TTY plus fixed tty0, DRM, input, and NVIDIA
    access to the compositor;
-5. supervises the existing collectors and action gateway;
-6. stops only containers whose exact run label matches;
-7. atomically archives service state, logs, inspection data, workload state,
+5. uses an unbound seatd instance because GDM/logind owns that assigned VT,
+   while retaining VT-bound seatd-launch behavior for the separate lab path;
+6. supervises the existing collectors and action gateway;
+7. stops only containers whose exact run label matches;
+8. atomically archives service state, logs, inspection data, workload state,
    acceptance contract, revision, and terminal session state; and
-8. removes the owned stopped containers and runtime volume only after the
+9. removes the owned stopped containers and runtime volume only after the
    archive succeeds.
 
 Normal, malformed, duplicate, unauthorized replay, timeout, interruption,
@@ -133,10 +137,10 @@ sudo ./scripts/quattro-gdm-session-install.py install --approve
 ```
 
 The conductor creates the dedicated `omarchy-quattro` group, adds `looco` only
-when necessary, atomically installs five reviewed files, reloads systemd, and
-starts the service. It explicitly verifies that the unit is **not enabled** at
-boot. It does not edit or restart GDM. Do not rerun the earlier GDM Wayland
-experiment for this checkpoint.
+when necessary, atomically installs the reviewed service/socket bundle, reloads
+systemd, and enables the socket listener. It explicitly verifies that the
+service unit is **not enabled** at boot. It does not edit or restart GDM. Do
+not rerun the earlier GDM Wayland experiment for this checkpoint.
 
 Read-only installed status:
 
@@ -144,8 +148,11 @@ Read-only installed status:
 sudo ./scripts/quattro-gdm-session-install.py status
 ```
 
-Expected status is `filesMatch: true`, `serviceActive: true`,
-`unitFileState: static`, `enabledAtBoot: false`, and `socketPresent: true`.
+Expected status is `filesMatch: true`, `unitFileState: static`,
+`enabledAtBoot: false`, `socketUnitFileState: enabled`,
+`socketEnabledAtBoot: true`, and `socketPresent: true`. The service may be
+inactive until the first validated client connection; this is expected socket
+activation behavior.
 Systemd reports an install-less unit as `static`; this means it has no boot
 target links and is not enabled. A new login is required
 before the desktop user's newly added supplementary group is effective, but no
@@ -165,9 +172,11 @@ rollback automatically.
 
 ### Verified installation result
 
-The temporary service was installed and verified on 2026-09-22. All five
-installed files matched their recorded hashes, the unit reported `static`, the
-service was active, and the control socket appeared as mode `0660` owned by
+The previous temporary service was installed and verified on 2026-09-22. The
+historical five-file bundle matched its recorded hashes and the unit reported
+`static`. The current reviewed bundle adds the socket unit; host refresh and
+physical reboot verification are pending. In either version, the control
+socket is mode `0660` owned by
 `root:omarchy-quattro`. A fixed health request from a root peer returned the
 expected correlated `unauthorized` result and created no run state, confirming
 that socket access alone cannot bypass the non-root logind-session rule.

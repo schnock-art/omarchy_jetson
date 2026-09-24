@@ -103,6 +103,7 @@ class EntryInstaller:
         s3_state_path: pathlib.Path = S3_STATE_PATH,
         require_root_ownership: bool = True,
         active_state_root: pathlib.Path = pathlib.Path("/run/omarchy-quattro/sessions"),
+        runtime_state_root: pathlib.Path = pathlib.Path("/run/omarchy-quattro/runtime"),
         gdm_config: pathlib.Path = GDM_CONFIG,
         account_record: pathlib.Path = ACCOUNT_RECORD,
     ):
@@ -111,6 +112,7 @@ class EntryInstaller:
         self.s3_state_path = s3_state_path
         self.require_root_ownership = require_root_ownership
         self.active_state_root = active_state_root
+        self.runtime_state_root = runtime_state_root
         self.gdm_config = gdm_config
         self.account_record = account_record
 
@@ -215,10 +217,17 @@ class EntryInstaller:
             return {"schemaVersion": 1, "installed": False}
         state = self._load_json(self.state_path, "S4 entry")
         matches = [self._matches(pathlib.Path(record["destination"]), record) for record in state["files"]]
+        source_by_destination = {str(item.destination): item.source for item in self.files}
+        source_matches = [
+            record["destination"] in source_by_destination
+            and sha256(source_by_destination[record["destination"]]) == record["sha256"]
+            for record in state["files"]
+        ]
         return {
             "schemaVersion": 1,
             "installed": True,
             "filesMatch": all(matches),
+            "filesMatchSource": len(source_matches) == len(self.files) and all(source_matches),
             "entryPresent": pathlib.Path(state["entryPath"]).is_file(),
             "changesGdmConfig": False,
             "changesDefaultSession": False,
@@ -230,8 +239,10 @@ class EntryInstaller:
     def install(self) -> dict[str, Any]:
         if self.state_path.exists() or self.state_path.is_symlink():
             status = self.status()
-            if status.get("filesMatch"):
+            if status.get("filesMatch") and status.get("filesMatchSource"):
                 return status
+            if status.get("filesMatch"):
+                raise EntryError("S4 entry is installed but stale; use refresh --approve")
             raise EntryError("S4 entry has installation state but its files changed")
         self._require_current_s3()
         plan = self.plan()
@@ -263,6 +274,70 @@ class EntryInstaller:
             self.state_path.unlink(missing_ok=True)
             raise
 
+    def refresh(self) -> dict[str, Any]:
+        state = self._load_json(self.state_path, "S4 entry")
+        self._require_no_active_run()
+        self._require_current_s3()
+        records = {record["destination"]: record for record in state.get("files", [])}
+        expected = {str(item.destination) for item in self.files}
+        if set(records) != expected:
+            raise EntryError("installed file set does not match the reviewed S4 entry bundle")
+        for destination, record in records.items():
+            if not self._matches(pathlib.Path(destination), record):
+                raise EntryError(f"installed entry file changed; refusing refresh: {destination}")
+
+        plan = self.plan()
+        backups = {item.destination: item.destination.read_bytes() for item in self.files}
+        old_modes = {item.destination: item.destination.stat().st_mode & 0o777 for item in self.files}
+        old_state = state.copy()
+        gdm_before = optional_sha256(self.gdm_config)
+        account_before = optional_sha256(self.account_record)
+        try:
+            for item in self.files:
+                self._write_file(item)
+            if optional_sha256(self.gdm_config) != gdm_before or optional_sha256(self.account_record) != account_before:
+                raise EntryError("GDM or account defaults changed during entry refresh")
+            refreshed = {
+                **plan,
+                "installedAt": state.get("installedAt", now()),
+                "refreshedAt": now(),
+                "entryPath": str(next(item.destination for item in self.files if item.destination.name.endswith(".desktop"))),
+                # Preserve the original installation observations. A separately
+                # approved GDM experiment may legitimately be active during a
+                # wrapper-only refresh.
+                "gdmConfigSha256AtInstall": state.get("gdmConfigSha256AtInstall"),
+                "accountRecordSha256AtInstall": state.get("accountRecordSha256AtInstall"),
+            }
+            atomic_json(self.state_path, refreshed)
+            os.chown(self.state_path, 0, 0)
+            return self.status()
+        except BaseException as exc:
+            recovery_error: BaseException | None = None
+            try:
+                for item in self.files:
+                    restore = EntryFile(item.source, item.destination, old_modes[item.destination])
+                    descriptor, temporary = tempfile.mkstemp(
+                        prefix=f".{item.destination.name}.", dir=item.destination.parent,
+                    )
+                    try:
+                        os.fchmod(descriptor, restore.mode)
+                        with os.fdopen(descriptor, "wb") as target:
+                            target.write(backups[item.destination])
+                            target.flush()
+                            os.fsync(target.fileno())
+                        os.chown(temporary, 0, 0)
+                        os.replace(temporary, item.destination)
+                    except BaseException:
+                        pathlib.Path(temporary).unlink(missing_ok=True)
+                        raise
+                atomic_json(self.state_path, old_state)
+                os.chown(self.state_path, 0, 0)
+            except BaseException as restore_exc:
+                recovery_error = restore_exc
+            if recovery_error:
+                raise EntryError(f"refresh failed ({exc}); rollback also failed ({recovery_error})") from exc
+            raise
+
     def _require_no_active_run(self) -> None:
         for path in self.active_state_root.glob("*.json"):
             try:
@@ -270,7 +345,21 @@ class EntryInstaller:
             except (OSError, json.JSONDecodeError) as exc:
                 raise EntryError(f"cannot verify active session state: {path}") from exc
             if state.get("state") in {"starting", "running", "stopping", "collecting"}:
-                raise EntryError(f"refusing uninstall while Quattro run is active: {state.get('runId', path.stem)}")
+                run_id = state.get("runId", path.stem)
+                runtime_path = self.runtime_state_root / str(run_id) / "status.json"
+                try:
+                    runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    runtime = None
+                if (
+                    isinstance(runtime, dict)
+                    and runtime.get("schemaVersion") == SCHEMA_VERSION
+                    and runtime.get("runId") == run_id
+                    and runtime.get("state") in {"stopped", "failed"}
+                    and runtime.get("archiveReady") is True
+                ):
+                    continue
+                raise EntryError(f"refusing entry change while Quattro run is active: {run_id}")
 
     def uninstall(self) -> dict[str, Any]:
         if not self.state_path.exists() and not self.state_path.is_symlink():
@@ -289,7 +378,7 @@ class EntryInstaller:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("plan", "install", "status", "uninstall"))
+    parser.add_argument("operation", choices=("plan", "install", "refresh", "status", "uninstall"))
     parser.add_argument("--approve", action="store_true")
     args = parser.parse_args()
     try:
@@ -299,7 +388,7 @@ def main() -> int:
         else:
             if os.geteuid() != 0:
                 raise EntryError(f"{args.operation} must run as root")
-            if args.operation in {"install", "uninstall"} and not args.approve:
+            if args.operation in {"install", "refresh", "uninstall"} and not args.approve:
                 raise EntryError(f"{args.operation} requires --approve")
             result = getattr(installer, args.operation)()
         print(json.dumps(result, indent=2, sort_keys=True))

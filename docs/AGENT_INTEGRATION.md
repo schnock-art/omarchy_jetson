@@ -94,3 +94,21 @@ launching. It cannot hand off the VT, stop or restore GDM, alter
 `/home/looco/omarchy`, install packages, or change JetPack/NVIDIA state. The
 Quickshell container receives only sanitized action state; provider credentials
 remain on the host.
+
+## Planned local inference and repository-builder provider
+
+Local inference is now separately scoped in
+[LOCAL_BUILDER_PLAN.md](LOCAL_BUILDER_PLAN.md). It does not replace the accepted
+MVP Codex adapter: that adapter remains an archive evaluator with its existing
+evidence contract. The local provider track introduces a loopback-only Ollama
+service, model benchmarking, and a separate versioned task/result protocol for
+repository implementation.
+
+The initial candidates are `qwen3:8b` for planning and `qwen3-coder:30b` for
+bounded implementation, subject to a recorded Jetson resource and fixture
+benchmark. A runner must enforce a dedicated worktree, no network, no privilege
+escalation, no Docker, and no writable primary checkout; a prompt alone is not
+a security boundary. Quattro will render sanitized status and may approve only
+a prevalidated task ID. It will not offer arbitrary prompt, command, argument,
+or model-option fields. Local builder results remain advisory until a human
+reviews the worktree diff and relevant checks.

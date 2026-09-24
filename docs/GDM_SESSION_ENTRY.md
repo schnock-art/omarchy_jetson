@@ -6,15 +6,16 @@ The S4 session entry is installed and physically verified. Final run
 `20260923-193649-29443` completed the archived acceptance contract, including
 the bounded Codex archive review and explicit human visual assertions. S4 adds
 an explicitly selectable **Quattro (Jetson preview)** Wayland session; it does
-not make Quattro preferred, enable automatic login, enable the service at boot,
-or alter GDM's configuration.
+not make Quattro preferred, enable automatic login, start Quattro at boot, or
+alter GDM's configuration. The narrow control socket may be boot-available;
+the service remains static and does not launch a desktop session by itself.
 
 The GDM Wayland experiment `20260923-192434` is rolled back: its original GDM
 file hash is restored, GDM is active, and Ubuntu on Xorg was verified after the
 test. The local-VT launcher remains the supported recovery path.
 
 The verified installation has matching hashes for both root-owned S4 files,
-an active static S3 service and socket, and unchanged GDM and AccountsService
+the static S3 service and socket unit, and unchanged GDM and AccountsService
 records at install time.
 Fresh GDM experiment bundles record whether the entry is installed, its hash,
 and whether it matches the repository source before the physical gate begins.
@@ -45,6 +46,23 @@ no configured fatal pattern, a completed harmless workload and Codex refresh,
 and a completed MVP agent. The human confirmed rendering, panels, input,
 audio, fixed actions, and `Super+Shift+E` return to GDM. The stored result is
 passing; the historical failed attempts above remain retained as evidence.
+
+On 2026-09-24, later runtime work increased startup beyond the 15-second bound
+in the originally installed S4 wrapper. The checkout already contained the
+reviewed 60-second bound, but idempotent S4 installation reported only that the
+installed files matched their old protected record; it did not expose that the
+record was stale relative to the checkout. Run `20260924-084627-72501` timed
+out at the wrapper after 15 seconds, finished starting after GDM had torn down
+the session, and left its labelled containers alive. The recovery archived
+that exact run and removed only its owned containers. S4 status now reports
+source freshness and the installer provides a hash-protected transactional
+refresh. The refreshed wrapper matches the checkout. The human then completed
+two successful login/logout cycles, retained as runs `20260924-105055-189127`
+and `20260924-105337-197726`. Both archives have exit code `0`, three stable
+tty2 seat samples, and normal seatd client shutdown. This physically verifies
+the login-bounce regression fix and repeat-start cleanup. It does not by itself
+satisfy S5-1's broader panels, audio, fixed-action, evaluator, and explicit
+visual-assertion requirements.
 
 ## Lifecycle
 
@@ -85,7 +103,8 @@ image, device, mount, environment, or Docker arguments.
 
 S4 extends the installed service protocol, so refresh the verified S3 bundle
 first. Refresh refuses changed installed files, stops the static service,
-atomically replaces the reviewed bundle, starts it again, waits for its socket,
+atomically replaces the reviewed bundle, enables its socket listener, and waits
+for the socket,
 and restores the complete previous bundle if any step fails:
 
 ```sh
@@ -106,6 +125,19 @@ the current reviewed S3 hashes and active socket, records GDM and AccountsServic
 hashes before writing, and verifies they did not change. It does not restart
 GDM. With the currently restored `WaylandEnable=false` policy, the entry is not
 yet a runnable physical test; do not infer display acceptance from installation.
+
+After changing the reviewed wrapper or desktop entry, refresh the installed S4
+bundle transactionally instead of relying on idempotent installation:
+
+```sh
+sudo ./scripts/quattro-gdm-session-entry.py refresh --approve
+```
+
+Status reports `filesMatchSource`; a false value means the installed files still
+match their protected installation record but are stale relative to the checkout.
+Refresh refuses modified installed files and active Quattro runs, preserves the
+original GDM/AccountsService observations, and restores the prior S4 bundle if
+replacement fails.
 
 ## Rollback
 

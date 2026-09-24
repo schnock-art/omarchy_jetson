@@ -82,6 +82,13 @@ class ControlTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
+    def test_main_preserves_systemd_activation_argument(self) -> None:
+        with mock.patch.object(SERVICE.os, "geteuid", return_value=0), mock.patch.object(
+            SERVICE.sys, "argv", ["session-service", "serve", "--systemd-activation"],
+        ), mock.patch.object(SERVICE, "Controller"), mock.patch.object(SERVICE, "serve") as serve:
+            self.assertEqual(SERVICE.main(), 0)
+        self.assertTrue(serve.call_args.kwargs["systemd_activation"])
+
     def handle(self, operation: str, request_id: str, run_id: str = "run-1", uid: int = 2002) -> dict[str, Any]:
         return self.controller.handle(request(operation, request_id, run_id), uid)
 

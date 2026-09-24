@@ -148,6 +148,13 @@ Add Claude, Fireworks, local inference, or other providers one at a time using
 the same host-collector/sanitized-record pattern as Codex. Each provider gets
 its own authentication, data-retention, and refresh-policy review.
 
+The local-inference/provider implementation path is now explicitly defined in
+[LOCAL_BUILDER_PLAN.md](LOCAL_BUILDER_PLAN.md). It supersedes this paragraph as
+the scope for Ollama and a local repository builder: loopback-only service,
+model benchmark, isolated worktree runner, versioned task/result records, and
+twice-confirmed fixed approval are required before a local model can change
+repository files.
+
 ## Completion criteria
 
 Phase 4 is complete when 4A through 4C pass, agent/workload state is visible

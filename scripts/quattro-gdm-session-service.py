@@ -624,15 +624,25 @@ def send_result(connection: socket.socket, result: dict[str, Any]) -> bool:
     return True
 
 
-def serve(controller: Controller, socket_path: pathlib.Path = SOCKET_PATH) -> None:
+def serve(
+    controller: Controller,
+    socket_path: pathlib.Path = SOCKET_PATH,
+    systemd_activation: bool = False,
+) -> None:
     if os.geteuid() != 0:
         raise ControlError("root-required", "the session service must run as root")
-    group_gid = grp.getgrnam(SOCKET_GROUP).gr_gid
-    socket_path.parent.mkdir(parents=True, mode=0o755, exist_ok=True)
-    if socket_path.is_symlink():
-        raise ControlError("unsafe-socket", "control socket path must not be a symlink")
-    socket_path.unlink(missing_ok=True)
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    owns_socket = not systemd_activation
+    if systemd_activation:
+        if os.environ.get("LISTEN_PID") != str(os.getpid()) or os.environ.get("LISTEN_FDS") != "1":
+            raise ControlError("activation-invalid", "systemd socket activation metadata is invalid")
+        server = socket.fromfd(3, socket.AF_UNIX, socket.SOCK_STREAM)
+    else:
+        group_gid = grp.getgrnam(SOCKET_GROUP).gr_gid
+        socket_path.parent.mkdir(parents=True, mode=0o755, exist_ok=True)
+        if socket_path.is_symlink():
+            raise ControlError("unsafe-socket", "control socket path must not be a symlink")
+        socket_path.unlink(missing_ok=True)
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     stop_requested = False
 
     def request_stop(_signum: int, _frame: Any) -> None:
@@ -643,10 +653,11 @@ def serve(controller: Controller, socket_path: pathlib.Path = SOCKET_PATH) -> No
     for signum in (signal.SIGINT, signal.SIGTERM):
         signal.signal(signum, request_stop)
     try:
-        server.bind(str(socket_path))
-        os.chown(socket_path, 0, group_gid)
-        os.chmod(socket_path, 0o660)
-        server.listen(8)
+        if not systemd_activation:
+            server.bind(str(socket_path))
+            os.chown(socket_path, 0, group_gid)
+            os.chmod(socket_path, 0o660)
+            server.listen(8)
         while not stop_requested:
             try:
                 connection, _address = server.accept()
@@ -665,17 +676,18 @@ def serve(controller: Controller, socket_path: pathlib.Path = SOCKET_PATH) -> No
                 send_result(connection, result)
     finally:
         server.close()
-        socket_path.unlink(missing_ok=True)
+        if owns_socket:
+            socket_path.unlink(missing_ok=True)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("serve", nargs="?", default="serve", choices=("serve",))
+    parser.add_argument("--systemd-activation", action="store_true")
     args = parser.parse_args()
-    del args
     try:
         controller = Controller(StateStore(STATE_ROOT), LogindInspector(), FixedContainerRuntime())
-        serve(controller)
+        serve(controller, systemd_activation=args.systemd_activation)
         return 0
     except (ControlError, OSError, KeyError) as exc:
         print(f"Quattro GDM session service failed: {exc}", file=sys.stderr)

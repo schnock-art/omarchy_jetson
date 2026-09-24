@@ -12,7 +12,54 @@ export HYPRLAND_UID HYPRLAND_GID HYPRLAND_INPUT_GID HYPRLAND_VIDEO_GID HYPRLAND_
 
 install -d -m 0700 -o "$HYPRLAND_UID" -g "$HYPRLAND_GID" "$XDG_RUNTIME_DIR"
 
-# seatd-launch is intentionally the only root portion. It claims the active
-# VT/DRM seat, then invokes hyprland-unprivileged, which transfers ownership of
-# its socket and drops all the way to the dedicated user.
-exec seatd-launch -- /usr/local/bin/hyprland-unprivileged "$@"
+if [ "${QUATTRO_SEATD_UNBOUND:-0}" != 1 ]; then
+  # The local-VT lab owns its VT and keeps seatd-launch's VT-bound behavior.
+  exec seatd-launch -- /usr/local/bin/hyprland-unprivileged "$@"
+fi
+
+# A GDM/logind session already owns the assigned VT. seatd-launch deliberately
+# starts seatd with an empty environment, so SEATD_VTBOUND cannot pass through
+# it. Start the same daemon directly for this fixed mode and leave VT switching
+# to GDM; seatd remains the only root process that opens DRM/input devices.
+SEATD_SOCK=/run/seatd.sock
+export SEATD_SOCK SEATD_VTBOUND=0
+
+seatd -u hyprland -g input -l info &
+seatd_pid=$!
+compositor_pid=
+
+cleanup() {
+  if [ -n "$compositor_pid" ]; then
+    kill -TERM "$compositor_pid" 2>/dev/null || :
+  fi
+  kill -TERM "$seatd_pid" 2>/dev/null || :
+}
+trap cleanup HUP INT TERM
+
+attempt=0
+while [ ! -S "$SEATD_SOCK" ]; do
+  if ! kill -0 "$seatd_pid" 2>/dev/null; then
+    wait "$seatd_pid" || :
+    echo 'seatd exited before its control socket became ready' >&2
+    exit 1
+  fi
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 50 ]; then
+    cleanup
+    wait "$seatd_pid" || :
+    echo 'timed out waiting for the seatd control socket' >&2
+    exit 1
+  fi
+  sleep 0.1
+done
+
+/usr/local/bin/hyprland-unprivileged "$@" &
+compositor_pid=$!
+set +e
+wait "$compositor_pid"
+status=$?
+set -e
+compositor_pid=
+kill -TERM "$seatd_pid" 2>/dev/null || :
+wait "$seatd_pid" 2>/dev/null || :
+exit "$status"

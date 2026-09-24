@@ -115,6 +115,11 @@ Docker access, or unrestricted D-Bus is not eligible for this protocol.
 Provider output is advisory. `scripts/quattro-mvp.py` and the archived contract
 remain the authority for PASS/FAIL.
 
+The host-local Ollama and repository-builder provider is intentionally not an
+MVP adapter extension. Follow [LOCAL_BUILDER_PLAN.md](LOCAL_BUILDER_PLAN.md)
+for its separate service, benchmark, sandbox, task-record, and human diff-review
+gates.
+
 ## Maintenance checks
 
 After shell, QML, manifest, or runtime configuration changes:

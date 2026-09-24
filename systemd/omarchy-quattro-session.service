@@ -6,7 +6,7 @@ Requires=docker.service
 
 [Service]
 Type=simple
-ExecStart=/usr/libexec/omarchy-quattro/session-service serve
+ExecStart=/usr/libexec/omarchy-quattro/session-service serve --systemd-activation
 Restart=on-failure
 RestartSec=2
 RuntimeDirectory=omarchy-quattro

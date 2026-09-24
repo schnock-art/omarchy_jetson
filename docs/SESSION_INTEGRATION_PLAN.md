@@ -180,10 +180,10 @@ client, and fixed container/evidence supervisor. The fixture and security gates
 pass; see [GDM_SESSION_SERVICE.md](GDM_SESSION_SERVICE.md) and
 [S3_SECURITY_REVIEW.md](S3_SECURITY_REVIEW.md). The S3 service is temporarily
 installed, but this does not install a GDM
-session entry. The five installed files match their
-recorded hashes, the service is active but static (not boot-enabled), its
-root-owned group socket is present, and an unauthorized root-peer request
-failed closed without creating run state.
+session entry. The reviewed runtime bundle includes a static service and a
+socket-activated listener; the service itself is not boot-enabled, while the
+socket may be enabled to accept only the fixed protocol. An unauthorized
+root-peer request failed closed without creating run state.
 
 - Add an unprivileged wrapper that validates its GDM/logind session and creates
   one run ID.
@@ -240,7 +240,14 @@ works immediately afterward.
 
 ### S5 — Reliability and reboot acceptance
 
-Status: planned.
+Status: implementation complete for S5-0. The 2026-09-24 wrapper-timeout fix
+is physically verified by consecutive successful login/logout runs
+`20260924-105055-189127` and `20260924-105337-197726`; full S5-1 visual and
+automated acceptance plus S5-2 through S5-5 remain pending. The fixture-tested socket-activation design lets an
+explicitly selected session reach the fixed service after reboot without
+enabling Quattro itself at boot. The exact scenario order, evidence contract,
+reboot procedure, and mandatory rollback are documented in
+[S5_RELIABILITY_ACCEPTANCE.md](S5_RELIABILITY_ACCEPTANCE.md).
 
 - Test repeated Quattro login/logout cycles, failed container start, compositor
   crash, forced service timeout, power loss/reboot recovery, and an ordinary
@@ -252,6 +259,11 @@ Status: planned.
 Gate: all automated contracts pass, all required human assertions are recorded,
 GDM survives every tested path, and no stale container/session blocks the next
 login.
+
+The planned local Ollama/repository-builder track depends on an explicit S5
+result. It must not be used to hide or compensate for a session, GDM recovery,
+or service-lifecycle failure. Its independent scope is documented in
+[LOCAL_BUILDER_PLAN.md](LOCAL_BUILDER_PLAN.md).
 
 ### S6 — Decide whether “preferred” is safe
 

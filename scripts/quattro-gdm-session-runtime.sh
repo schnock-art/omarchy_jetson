@@ -88,6 +88,8 @@ runtime_reject_existing_container() {
 runtime_archive() {
   archive_failed=0
   mkdir -p "$ARCHIVE_DIR"
+  quattro_archive_file "$RUN_DIR/seat-check.jsonl" "$ARCHIVE_DIR" seat-check.jsonl || archive_failed=1
+  quattro_archive_file "$RUN_DIR/supervisor.log" "$ARCHIVE_DIR" supervisor.log || archive_failed=1
   quattro_services_archive "$ARCHIVE_DIR" || archive_failed=1
   quattro_archive_file "$CHECKOUT/artifacts/workloads/registry.json" "$ARCHIVE_DIR" workload-registry.json || archive_failed=1
   if runtime_owned_container "$QS_CONTAINER"; then
@@ -223,12 +225,14 @@ runtime_supervise() {
     --mount type=bind,src=/etc/localtime,dst=/etc/localtime,readonly \
     --entrypoint sh "$QS_IMAGE" /test/run-quattro-shell.sh >/dev/null
 
+  quattro_wait_for_session_vt "$SESSION_ID" "$HOST_UID" "$SESSION_TTY" "$RUN_DIR/seat-check.jsonl" || runtime_fail 'GDM seat/VT readiness failed'
   quattro_docker run -d -t --name "$HYPR_CONTAINER" --label "$CONTAINER_LABEL" \
     --network none --runtime=nvidia --gpus all --device=/dev/dri --device=/dev/input \
     --device-cgroup-rule='c 13:* rwm' --mount type=bind,src=/run/udev,dst=/run/udev,readonly \
     --mount "type=bind,src=$TEST_CONFIG,dst=/etc/hyprland-smoke.conf,readonly" \
     --mount "type=volume,src=$RUNTIME_VOLUME,dst=/tmp/hypr-runtime" \
     --device=/dev/tty0 --device="/dev/$SESSION_TTY" --cap-add=SYS_TTY_CONFIG \
+    -e QUATTRO_SEATD_UNBOUND=1 \
     -e HYPRLAND_UID="$HOST_UID" -e HYPRLAND_GID="$HOST_GID" \
     -e HYPRLAND_INPUT_GID="$INPUT_GID" -e HYPRLAND_VIDEO_GID="$VIDEO_GID" \
     -e HYPRLAND_RENDER_GID="$RENDER_GID" -e XDG_RUNTIME_DIR=/tmp/hypr-runtime \

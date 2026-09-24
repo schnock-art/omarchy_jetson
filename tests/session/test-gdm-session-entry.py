@@ -38,6 +38,8 @@ class EntryTests(unittest.TestCase):
         self.state = self.root / "state/session-entry.json"
         self.active = self.root / "active"
         self.active.mkdir()
+        self.runtime = self.root / "runtime"
+        self.runtime.mkdir()
         self.gdm_config = self.root / "custom.conf"
         self.gdm_config.write_text("[daemon]\nWaylandEnable=false\n", encoding="utf-8")
         self.account_record = self.root / "account"
@@ -45,6 +47,7 @@ class EntryTests(unittest.TestCase):
         self.installer = ENTRY.EntryInstaller(
             self.files, self.state, self.root / "s3.json",
             require_root_ownership=False, active_state_root=self.active,
+            runtime_state_root=self.runtime,
             gdm_config=self.gdm_config, account_record=self.account_record,
         )
         self.installer._require_current_s3 = mock.Mock()  # type: ignore[method-assign]
@@ -76,6 +79,62 @@ class EntryTests(unittest.TestCase):
         self.assertFalse(self.state.exists())
         self.assertFalse(any(item.destination.exists() for item in self.files))
         self.assertFalse(self.installer.uninstall()["installed"])
+
+    def test_stale_installed_source_requires_transactional_refresh(self) -> None:
+        self.install()
+        self.files[0].source.write_text("#!/bin/sh\nexit 7\n", encoding="utf-8")
+        status = self.installer.status()
+        self.assertTrue(status["filesMatch"])
+        self.assertFalse(status["filesMatchSource"])
+        with self.assertRaisesRegex(ENTRY.EntryError, "stale; use refresh"):
+            self.install()
+        with mock.patch.object(ENTRY.os, "chown"):
+            refreshed = self.installer.refresh()
+        self.assertTrue(refreshed["filesMatch"])
+        self.assertTrue(refreshed["filesMatchSource"])
+        self.assertEqual(self.files[0].destination.read_bytes(), self.files[0].source.read_bytes())
+
+    def test_active_run_refuses_refresh(self) -> None:
+        self.install()
+        self.files[0].source.write_text("#!/bin/sh\nexit 7\n", encoding="utf-8")
+        (self.active / "run-1.json").write_text(json.dumps({"runId": "run-1", "state": "running"}), encoding="utf-8")
+        with self.assertRaisesRegex(ENTRY.EntryError, "run is active"):
+            self.installer.refresh()
+
+    def test_archived_terminal_runtime_allows_refresh_of_stale_control_state(self) -> None:
+        self.install()
+        self.files[0].source.write_text("#!/bin/sh\nexit 7\n", encoding="utf-8")
+        (self.active / "run-1.json").write_text(json.dumps({"runId": "run-1", "state": "running"}), encoding="utf-8")
+        runtime_dir = self.runtime / "run-1"
+        runtime_dir.mkdir()
+        (runtime_dir / "status.json").write_text(json.dumps({
+            "schemaVersion": 1, "runId": "run-1", "state": "failed", "archiveReady": True,
+        }), encoding="utf-8")
+        with mock.patch.object(ENTRY.os, "chown"):
+            status = self.installer.refresh()
+        self.assertTrue(status["filesMatchSource"])
+
+    def test_failed_refresh_restores_previous_bundle_and_state(self) -> None:
+        self.install()
+        previous_files = {item.destination: item.destination.read_bytes() for item in self.files}
+        previous_state = self.state.read_bytes()
+        self.files[0].source.write_text("#!/bin/sh\nexit 7\n", encoding="utf-8")
+        real_write = self.installer._write_file
+        calls = 0
+
+        def fail_second_write(item: ENTRY.EntryFile) -> None:
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise OSError("fixture refresh failure")
+            real_write(item)
+
+        with mock.patch.object(self.installer, "_write_file", side_effect=fail_second_write), mock.patch.object(ENTRY.os, "chown"):
+            with self.assertRaisesRegex(OSError, "fixture refresh failure"):
+                self.installer.refresh()
+        self.assertEqual(self.state.read_bytes(), previous_state)
+        for path, content in previous_files.items():
+            self.assertEqual(path.read_bytes(), content)
 
     def test_collision_refuses_overwrite(self) -> None:
         self.files[0].destination.parent.mkdir(parents=True)

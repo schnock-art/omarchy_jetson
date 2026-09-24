@@ -50,6 +50,8 @@ expanding the accepted MVP claim or weakening the normal Ubuntu recovery path.
 - [Narrow GDM session service](docs/GDM_SESSION_SERVICE.md)
 - [S3 session-service security review](docs/S3_SECURITY_REVIEW.md)
 - [Opt-in Quattro GDM session entry](docs/GDM_SESSION_ENTRY.md)
+- [S5 reliability and reboot acceptance](docs/S5_RELIABILITY_ACCEPTANCE.md)
+- [Local inference and repository-builder plan](docs/LOCAL_BUILDER_PLAN.md)
 
 ## Status
 
@@ -146,3 +148,24 @@ byte and Ubuntu on Xorg was verified afterward. S4 adds only an explicitly selec
 `Quattro (Jetson preview)` entry and does not change the remembered/default
 session, automatic login, GDM policy, or boot enablement. See
 [docs/GDM_SESSION_ENTRY.md](docs/GDM_SESSION_ENTRY.md).
+
+The 2026-09-24 login-bounce regression is fixed and physically verified across
+two consecutive successful selections (`20260924-105055-189127` and
+`20260924-105337-197726`). The installed wrapper had retained an obsolete
+15-second response timeout while valid startup took about 16 seconds. S4 entry
+status now detects source-stale installed bundles, refresh is transactional,
+and the timeout fixture is tied directly to the service startup bound. These
+runs verify repeat login/logout reliability, but remain separate from the full
+S5 visual and reboot acceptance gates.
+
+## Local inference and repository builder
+
+The next daily-use capability is deliberately scoped as an opt-in host-local
+Ollama service and a repository-only local builder, not an autonomous desktop
+agent. The initial benchmark candidates are `qwen3:8b` for responsive planning
+and `qwen3-coder:30b` for bounded implementation. Neither is installed or
+selected until the S5 reliability prerequisite, loopback-only service design,
+resource benchmark, and enforceable worktree sandbox are accepted. A local
+model may produce a reviewed worktree diff and test evidence, but cannot alter
+`main`, GDM, boot/JetPack/NVIDIA state, or arbitrary host files. See
+[docs/LOCAL_BUILDER_PLAN.md](docs/LOCAL_BUILDER_PLAN.md).

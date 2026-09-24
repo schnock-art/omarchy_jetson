@@ -40,14 +40,18 @@ class FakeSystem:
             self.member = False
         elif command[0] == "groupdel":
             self.group = False
-        if command[:2] == ["systemctl", "start"] and self.fail_start:
+        if command[:3] == ["systemctl", "enable", "--now"] and self.fail_start:
             self.fail_start = False
             return subprocess.CompletedProcess(command, 1, "", "fixture start failure")
         if command == ["systemctl", "is-enabled", INSTALL.SERVICE_NAME]:
             # systemctl intentionally returns success for a static unit. Static
             # has no boot target links and is not equivalent to enabled.
             return subprocess.CompletedProcess(command, 0, f"{self.unit_state}\n", "")
+        if command == ["systemctl", "is-enabled", INSTALL.SOCKET_NAME]:
+            return subprocess.CompletedProcess(command, 0, "enabled\n", "")
         if command == ["systemctl", "is-active", INSTALL.SERVICE_NAME]:
+            return subprocess.CompletedProcess(command, 0, "active\n", "")
+        if command == ["systemctl", "is-active", INSTALL.SOCKET_NAME]:
             return subprocess.CompletedProcess(command, 0, "active\n", "")
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -84,6 +88,10 @@ class InstallTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.socket.close()
         self.temporary.cleanup()
+
+    def test_reviewed_default_bundle_contains_socket_activation_unit(self) -> None:
+        destinations = {item.destination.name for item in INSTALL.default_files()}
+        self.assertIn("omarchy-quattro-session.socket", destinations)
 
     def test_install_status_and_uninstall_are_reversible(self) -> None:
         with mock.patch.object(INSTALL.os, "chown"):

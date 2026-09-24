@@ -17,6 +17,15 @@ WRAPPER = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = WRAPPER
 SPEC.loader.exec_module(WRAPPER)
 
+SERVICE_SPEC = importlib.util.spec_from_file_location(
+    "quattro_gdm_session_service_for_wrapper_test",
+    ROOT / "scripts/quattro-gdm-session-service.py",
+)
+assert SERVICE_SPEC and SERVICE_SPEC.loader
+SERVICE = importlib.util.module_from_spec(SERVICE_SPEC)
+sys.modules[SERVICE_SPEC.name] = SERVICE
+SERVICE_SPEC.loader.exec_module(SERVICE)
+
 
 class Exchange:
     def __init__(self, statuses: list[str], fail_start: bool = False):
@@ -37,7 +46,13 @@ class Exchange:
 
 class WrapperTests(unittest.TestCase):
     def test_startup_response_timeout_covers_the_service_start_bound(self) -> None:
-        self.assertGreaterEqual(WRAPPER.RESPONSE_TIMEOUT_SECONDS, 45)
+        # A client timeout at or below the service's bound can tear down the
+        # GDM session while a valid startup is still completing. Keep explicit
+        # transport/delivery headroom beyond the runtime readiness wait.
+        self.assertGreaterEqual(
+            WRAPPER.RESPONSE_TIMEOUT_SECONDS,
+            SERVICE.FixedContainerRuntime.START_TIMEOUT + 5,
+        )
 
     def test_normal_session_waits_for_exit_and_collects(self) -> None:
         exchange = Exchange(["running", "stopped"])

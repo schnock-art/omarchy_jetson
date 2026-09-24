@@ -1,0 +1,15 @@
+[Unit]
+Description=Omarchy Quattro narrow GDM control socket
+Documentation=file:/home/looco/repos/omarchy_jetson/docs/GDM_SESSION_SERVICE.md
+
+[Socket]
+ListenStream=/run/omarchy-quattro/control.sock
+SocketUser=root
+SocketGroup=omarchy-quattro
+SocketMode=0660
+DirectoryMode=0755
+Service=omarchy-quattro-session.service
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

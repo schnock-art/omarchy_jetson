@@ -31,6 +31,45 @@ quattro_validate_run_id() {
   esac
 }
 
+# GDM can change the foreground VT while collectors/containers are prepared.
+# seatd uses that foreground VT, not the device name passed to Docker.
+quattro_wait_for_session_vt() (
+  session_id=$1
+  session_uid=$2
+  session_tty=$3
+  evidence=$4
+  attempts=0
+  stable=0
+  while [ "$attempts" -lt 10 ]; do
+    attempts=$((attempts + 1))
+    foreground=$(cat /sys/class/tty/tty0/active 2>/dev/null) || foreground=unavailable
+    properties=$(timeout 1 loginctl show-session "$session_id" \
+      -p User -p Active -p Remote -p Seat -p TTY -p Type 2>/dev/null) || properties=
+    matched=false
+    if [ "$foreground" = "$session_tty" ] &&
+       printf '%s\n' "$properties" | grep -Fxq "User=$session_uid" &&
+       printf '%s\n' "$properties" | grep -Fxq 'Active=yes' &&
+       printf '%s\n' "$properties" | grep -Fxq 'Remote=no' &&
+       printf '%s\n' "$properties" | grep -Fxq 'Seat=seat0' &&
+       printf '%s\n' "$properties" | grep -Fxq 'Type=wayland' &&
+       printf '%s\n' "$properties" | grep -Fxq "TTY=$session_tty"; then
+      matched=true
+      stable=$((stable + 1))
+    else
+      stable=0
+    fi
+    jq -cn --arg sessionId "$session_id" --arg assignedTty "$session_tty" \
+      --arg foregroundTty "$foreground" --arg properties "$properties" \
+      --argjson matched "$matched" --argjson attempt "$attempts" \
+      '{schemaVersion:1,sessionId:$sessionId,assignedTty:$assignedTty,foregroundTty:$foregroundTty,properties:$properties,matched:$matched,attempt:$attempt,observedAt:(now|todateiso8601)}' \
+      >>"$evidence" || return 1
+    [ "$stable" -ge 3 ] && return 0
+    sleep 0.2
+  done
+  echo 'Assigned GDM session did not retain the foreground VT; compositor start refused.' >&2
+  return 1
+)
+
 quattro_new_run_id() {
   printf '%s-%s\n' "$(date +%Y%m%d-%H%M%S)" "$$"
 }

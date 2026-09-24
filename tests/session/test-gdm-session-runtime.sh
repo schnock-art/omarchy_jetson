@@ -27,5 +27,11 @@ grep -Fq -- '--network none' "$RUNTIME" || fail 'network isolation missing'
 grep -Fq 'src=$OMARCHY_ROOT,dst=/omarchy,readonly' "$RUNTIME" || fail 'read-only Omarchy mount missing'
 grep -Fq 'quickshell-quattro-smoke.log' "$RUNTIME" || fail 'canonical Quickshell archive missing'
 grep -Fq 'hyprland-phase2-drm.log' "$RUNTIME" || fail 'canonical Hyprland archive missing'
+grep -Fq -- '-e QUATTRO_SEATD_UNBOUND=1' "$RUNTIME" || fail 'GDM-owned VT mode missing'
+
+ENTRYPOINT="$ROOT_DIR/containers/hyprland-runtime/hyprland-seatd-entrypoint"
+grep -Fq 'SEATD_VTBOUND=0' "$ENTRYPOINT" || fail 'unbound seatd mode missing'
+grep -Fq 'seatd -u hyprland -g input -l info' "$ENTRYPOINT" || fail 'direct seatd startup missing'
+grep -Fq 'exec seatd-launch --' "$ENTRYPOINT" || fail 'lab VT-bound startup missing'
 
 echo 'GDM session fixed-runtime fixture checks passed'

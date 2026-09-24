@@ -26,6 +26,7 @@ UNIT_PATH = pathlib.Path("/etc/systemd/system/omarchy-quattro-session.service")
 STATE_PATH = pathlib.Path("/var/lib/omarchy-quattro/install.json")
 SOCKET_PATH = pathlib.Path("/run/omarchy-quattro/control.sock")
 SERVICE_NAME = "omarchy-quattro-session.service"
+SOCKET_NAME = "omarchy-quattro-session.socket"
 GROUP_NAME = "omarchy-quattro"
 DESKTOP_USER = "looco"
 SCHEMA_VERSION = 1
@@ -49,6 +50,7 @@ def default_files() -> tuple[InstallFile, ...]:
         InstallFile(ROOT / "scripts/quattro-session-common.sh", LIBEXEC / "quattro-session-common.sh", 0o644),
         InstallFile(ROOT / "scripts/quattro-session-services.sh", LIBEXEC / "quattro-session-services.sh", 0o644),
         InstallFile(ROOT / "systemd/omarchy-quattro-session.service", UNIT_PATH, 0o644),
+        InstallFile(ROOT / "systemd/omarchy-quattro-session.socket", pathlib.Path("/etc/systemd/system/omarchy-quattro-session.socket"), 0o644),
     )
 
 
@@ -133,6 +135,10 @@ class Installer:
         state = result.stdout.strip().splitlines()[0] if result.stdout.strip() else "unknown"
         return state
 
+    def _socket_unit_file_state(self) -> str:
+        result = self.system.run(["systemctl", "is-enabled", SOCKET_NAME])
+        return result.stdout.strip().splitlines()[0] if result.stdout.strip() else "unknown"
+
     @staticmethod
     def _enabled_at_boot(state: str) -> bool:
         return state in {"enabled", "enabled-runtime", "linked", "linked-runtime", "alias"}
@@ -152,7 +158,7 @@ class Installer:
             if self.socket_path.is_socket():
                 return
             time.sleep(0.05)
-        raise InstallError(f"service did not publish its control socket within {timeout:g} seconds")
+        raise InstallError(f"control socket did not become available within {timeout:g} seconds")
 
     def _load_state(self) -> dict[str, Any]:
         if self.state_path.is_symlink() or not self.state_path.is_file():
@@ -237,15 +243,18 @@ class Installer:
             atomic_json(self.state_path, state)
             os.chown(self.state_path, 0, 0)
             self._command(["systemctl", "daemon-reload"])
-            self._command(["systemctl", "start", SERVICE_NAME])
+            self._command(["systemctl", "enable", "--now", SOCKET_NAME])
             self._wait_for_socket()
             unit_state = self._unit_file_state()
             if self._enabled_at_boot(unit_state):
                 raise InstallError(f"service unexpectedly became enabled at boot ({unit_state})")
             if unit_state != "static":
                 raise InstallError(f"unexpected systemd unit-file state: {unit_state}")
+            if self._socket_unit_file_state() != "enabled":
+                raise InstallError("socket unit was not enabled for boot-time listening")
             return self.status()
         except BaseException:
+            self.system.run(["systemctl", "disable", "--now", SOCKET_NAME])
             self.system.run(["systemctl", "stop", SERVICE_NAME])
             for path in reversed(installed):
                 path.unlink(missing_ok=True)
@@ -262,14 +271,17 @@ class Installer:
         previous = self._load_state()
         previous_by_path = {record["destination"]: record for record in previous["files"]}
         expected_paths = {str(item.destination) for item in self.files}
-        if set(previous_by_path) != expected_paths:
-            raise InstallError("installed file set does not match the reviewed service bundle")
+        if not set(previous_by_path).issubset(expected_paths):
+            raise InstallError("installed file set contains paths outside the reviewed service bundle")
         for path_string, record in previous_by_path.items():
             if not self._matches(pathlib.Path(path_string), record):
                 raise InstallError(f"installed file changed; refusing refresh: {path_string}")
         plan = self.plan()
-        backups = {item.destination: item.destination.read_bytes() for item in self.files}
-        old_modes = {item.destination: item.destination.stat().st_mode & 0o777 for item in self.files}
+        backups = {item.destination: item.destination.read_bytes() for item in self.files if item.destination.exists()}
+        old_modes = {item.destination: item.destination.stat().st_mode & 0o777 for item in self.files if item.destination.exists()}
+        had_socket_unit = str(pathlib.Path("/etc/systemd/system/omarchy-quattro-session.socket")) in previous_by_path
+        if had_socket_unit:
+            self._command(["systemctl", "disable", "--now", SOCKET_NAME])
         self._command(["systemctl", "stop", SERVICE_NAME])
         try:
             for item in self.files:
@@ -284,24 +296,32 @@ class Installer:
             atomic_json(self.state_path, refreshed)
             os.chown(self.state_path, 0, 0)
             self._command(["systemctl", "daemon-reload"])
-            self._command(["systemctl", "start", SERVICE_NAME])
+            self._command(["systemctl", "enable", "--now", SOCKET_NAME])
             self._wait_for_socket()
             unit_state = self._unit_file_state()
             if unit_state != "static" or self._enabled_at_boot(unit_state):
                 raise InstallError(f"unexpected systemd unit-file state after refresh: {unit_state}")
             return self.status()
         except BaseException as exc:
+            self.system.run(["systemctl", "disable", "--now", SOCKET_NAME])
             self.system.run(["systemctl", "stop", SERVICE_NAME])
             recovery_error: BaseException | None = None
             try:
                 for item in self.files:
-                    restore = dataclasses.replace(item, mode=old_modes[item.destination])
-                    self._write_installed_file(restore, backups[item.destination])
+                    if item.destination in backups:
+                        restore = dataclasses.replace(item, mode=old_modes[item.destination])
+                        self._write_installed_file(restore, backups[item.destination])
+                    elif item.destination.exists():
+                        item.destination.unlink()
                 atomic_json(self.state_path, previous)
                 os.chown(self.state_path, 0, 0)
                 self._command(["systemctl", "daemon-reload"])
-                self._command(["systemctl", "start", SERVICE_NAME])
-                self._wait_for_socket()
+                if had_socket_unit:
+                    self._command(["systemctl", "enable", "--now", SOCKET_NAME])
+                    self._wait_for_socket()
+                else:
+                    self._command(["systemctl", "start", SERVICE_NAME])
+                    self._wait_for_socket()
             except BaseException as restore_exc:
                 recovery_error = restore_exc
             if recovery_error:
@@ -319,6 +339,8 @@ class Installer:
             files.append({"path": str(path), "matchesInstalledHash": matches})
         active = self.system.run(["systemctl", "is-active", SERVICE_NAME]).returncode == 0
         unit_state = self._unit_file_state()
+        socket_active = self.system.run(["systemctl", "is-active", SOCKET_NAME]).returncode == 0
+        socket_unit_state = self._socket_unit_file_state()
         return {
             "schemaVersion": SCHEMA_VERSION,
             "installed": True,
@@ -327,6 +349,9 @@ class Installer:
             "enabledAtBoot": self._enabled_at_boot(unit_state),
             "unitFileState": unit_state,
             "socketPresent": self.socket_path.is_socket(),
+            "socketActive": socket_active,
+            "socketEnabledAtBoot": self._enabled_at_boot(socket_unit_state),
+            "socketUnitFileState": socket_unit_state,
             "files": files,
         }
 
@@ -336,6 +361,7 @@ class Installer:
             path = pathlib.Path(record["destination"])
             if not self._matches(path, record):
                 raise InstallError(f"installed file changed; refusing removal: {path}")
+        self._command(["systemctl", "disable", "--now", SOCKET_NAME])
         self._command(["systemctl", "stop", SERVICE_NAME])
         for record in reversed(state["files"]):
             pathlib.Path(record["destination"]).unlink()

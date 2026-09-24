@@ -19,6 +19,8 @@ $SCRIPT_DIR/quattro-reboot-check.sh \
 $SCRIPT_DIR/quattro-workloads.sh \
 $SCRIPT_DIR/quattro-action-gateway.sh \
 $SCRIPT_DIR/quattro-agent-adapter.sh \
+$ROOT_DIR/containers/hyprland-runtime/hyprland-seatd-entrypoint \
+$ROOT_DIR/containers/hyprland-runtime/hyprland-unprivileged \
 $ROOT_DIR/tests/session/helpers/setpriv \
 $ROOT_DIR/tests/session/helpers/xdg-dbus-proxy \
 $ROOT_DIR/tests/session/helpers/fixture-system-bus.sh \
@@ -65,6 +67,7 @@ PY
 sh -n "$ROOT_DIR/tests/mvp/test-conductor.sh"
 sh -n "$ROOT_DIR/tests/mvp/test-control-plane.sh"
 sh -n "$ROOT_DIR/tests/session/test-session-common.sh"
+sh -n "$ROOT_DIR/tests/session/test-session-vt.sh"
 sh -n "$ROOT_DIR/tests/session/test-session-services.sh"
 sh -n "$ROOT_DIR/tests/session/test-gdm-session-runtime.sh"
 
@@ -88,6 +91,8 @@ jq empty "$ROOT_DIR/mvp/acceptance.json"
 }
 grep -Fqx 'Name=Quattro (Jetson preview)' "$ROOT_DIR/gdm/omarchy-quattro.desktop"
 grep -Fqx 'Exec=/usr/libexec/omarchy-quattro/session-wrapper run-session' "$ROOT_DIR/gdm/omarchy-quattro.desktop"
+grep -Fqx 'ListenStream=/run/omarchy-quattro/control.sock' "$ROOT_DIR/systemd/omarchy-quattro-session.socket"
+grep -Fqx 'ExecStart=/usr/libexec/omarchy-quattro/session-service serve --systemd-activation' "$ROOT_DIR/systemd/omarchy-quattro-session.service"
 
 command -v jq >/dev/null 2>&1 || {
   echo "Syntax check: jq is required for JSON validation" >&2
