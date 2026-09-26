@@ -11,6 +11,22 @@ The first implementation target is a local implementation runner for this
 repository. It is not an autonomous desktop agent and it is not a general
 terminal exposed through Quattro.
 
+## Role scope
+
+This plan defines the **Repository Builder** capability domain only: a
+low-trust autonomous executor for reviewed repository changes. Its worktree,
+no-network, no-sudo, no-Docker, bounded-runtime, fixed-template, and human
+review requirements are role-specific and remain non-negotiable.
+
+They are not a permanent capability ceiling for every future Quattro agent.
+The broader role model is documented in
+[QUATTRO_ARCHITECTURE.md](QUATTRO_ARCHITECTURE.md) and
+[AGENT_INTEGRATION.md](AGENT_INTEGRATION.md): a future Desktop/User Agent may
+receive explicitly granted normal-user environmental authority, while any
+future System Agent requires a separately designed mediated privileged
+capability broker. Neither future role is in scope for L0–L5, and neither
+weakens this Builder's boundary.
+
 Status: **planned; no Ollama package, model, service, or UI action is installed
 by this document.**
 
@@ -249,8 +265,10 @@ human review gate, while normal Ubuntu/Quattro session recovery remains proven.
   autonomous merges;
 - arbitrary chat-to-shell, arbitrary prompt-to-host, terminal emulation, and
   arbitrary model selection from QML;
-- system administration, package installation by the model, and changes to
-  NVIDIA/JetPack/GDM/boot state; and
+- system administration, package installation by the Repository Builder, and
+  changes to NVIDIA/JetPack/GDM/boot state. A future System Agent capability
+  broker is a separately deferred architecture/design track, not an exception
+  to this boundary; and
 - using an unverified large model merely because it fits on disk.
 
 ## Operator workflow after implementation

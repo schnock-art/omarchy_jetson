@@ -114,6 +114,12 @@ Every action requires a visible target, clear user approval, bounded logs, and
 a stop/recovery path. No button may silently start a networked agent, modify
 the host, or run in the background indefinitely.
 
+This batch does not define a universal agent-security model. The later
+role-specific architecture distinguishes the restricted Repository Builder from
+future Desktop/User and mediated System Agent domains; see
+[AGENT_INTEGRATION.md](AGENT_INTEGRATION.md). The latter two remain deferred
+and do not expand any current Phase 4 action.
+
 ### Decision gate
 
 The first approved action is deliberately narrower than provider launch: a

@@ -6,6 +6,13 @@ This document records the 2026-09-26 L0 prerequisites/design-lock work. It
 does not install Ollama, pull a model, load AppArmor policy, create a service,
 or change GDM/Quattro.
 
+This is a design for the **Repository Builder** role only. Its restrictive
+boundary must not be generalized into the capability model for every future
+Quattro agent; the role-specific architecture is in
+[QUATTRO_ARCHITECTURE.md](QUATTRO_ARCHITECTURE.md). Conversely, future
+Desktop/User or System Agent authority does not relax any Builder control in
+this document.
+
 **Status: design selected; L0 gate is not yet satisfied.** Bubblewrap plus a
 bounded systemd user unit enforces the intended boundary when unprivileged user
 namespaces are permitted. The fixed isolation fixture passes in the Codex

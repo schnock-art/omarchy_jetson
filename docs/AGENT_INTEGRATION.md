@@ -6,6 +6,35 @@ For the Workshop, preserve a distinction between participants and the operating 
 
 Initial porting should isolate provider launchers and IPC from Arch package management. Do not enable autonomous/background agents during reconnaissance. Jetson CUDA/TensorRT/local inference should remain a separate capability service until the desktop shell boundary is proven.
 
+## Capability roadmap
+
+The agent roles in [QUATTRO_ARCHITECTURE.md](QUATTRO_ARCHITECTURE.md) are
+intentional capability domains, not maturity labels. The existing MVP Codex
+adapter remains a bounded archived-run evaluator and is not silently promoted
+into any of these future roles.
+
+1. **Repository Builder** is the current local-inference track. It is a
+   low-trust autonomous executor with the worktree/evidence-only,
+   no-network/no-sudo/no-Docker boundary in
+   [LOCAL_BUILDER_PLAN.md](LOCAL_BUILDER_PLAN.md). Its L0 closure and later
+   L1–L5 milestones do not authorize broader desktop or system authority.
+2. **Desktop / User Agent** is future work for explicitly granted normal-user
+   environmental access, such as user files/workspaces, applications and UI
+   automation, themes/configuration, user services, approved networking, and
+   local models. It is not constrained to a Builder worktree by default, but
+   it does not receive root privileges automatically. Its grants, consent,
+   observability, and recovery contract require a separate reviewed design.
+3. **System Agent** is future work for mediated privileged operations. Before
+   any implementation, define a privileged capability broker (or equivalent)
+   with versioned requests, policy/risk classification, per-operation approval,
+   narrow fixed operations, structured results, and retained evidence. It must
+   not be an arbitrary root shell or unrestricted passwordless sudo path.
+
+The current roadmap places only Repository Builder work in the active Local
+Builder milestones. Desktop/User Agent and System Agent architecture, approval
+tiers, and implementation are explicitly deferred; they do not expand the L0
+closure, L1 Ollama service, or the current Quattro presentation surface.
+
 ## Jetson status
 
 Agent integration is deferred but required for the lab. The current Quattro
@@ -112,3 +141,8 @@ a security boundary. Quattro will render sanitized status and may approve only
 a prevalidated task ID. It will not offer arbitrary prompt, command, argument,
 or model-option fields. Local builder results remain advisory until a human
 reviews the worktree diff and relevant checks.
+
+These restrictions apply to the Repository Builder role. They deliberately do
+not foreclose future role-specific Desktop/User or System Agent designs, which
+remain subject to the capability-domain boundaries above rather than inheriting
+this runner's sandbox wholesale.

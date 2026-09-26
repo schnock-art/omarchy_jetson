@@ -8,6 +8,36 @@ This architecture is attractive for the Workshop because participant indicators,
 
 The strongest reusable boundary appears to be the shell/plugin model and IPC contract. The weakest boundary is the surrounding Omarchy command/configuration and Arch packaging layer.
 
+## Agent capability domains
+
+Agent authority is role-specific and explicitly granted. Isolation constrains an
+agent to authority appropriate for its role; the Local Builder sandbox is not
+the capability model for every present or future Quattro agent. Different
+agents may occupy different trust/capability domains.
+
+| Role | Intended authority | Boundary and status |
+| --- | --- | --- |
+| Repository Builder | Low-trust autonomous repository implementation in one dedicated worktree | The [Local Builder plan](LOCAL_BUILDER_PLAN.md) requires its Bubblewrap/AppArmor boundary: no network access, sudo, Docker, host filesystem authority, or generic QML command/prompt path, plus bounded execution and human diff review. This is the only role currently being designed for implementation. |
+| Desktop / User Agent | Explicitly granted normal-user environmental access: user files/workspaces, desktop applications and automation, themes/configuration, user services, approved network access, and local-model services | This role may operate as the desktop user and therefore does not inherit the Repository Builder's worktree-only sandbox by default. It receives no root authority automatically. Its precise grants, consent, audit, and recovery design remain future work. |
+| System Agent | Reviewed host-administration operations such as package/service/configuration, hardware/power, and selected platform maintenance | This must use a separately designed privileged capability broker or equivalent—not passwordless sudo or arbitrary root shell. A structured/versioned request is classified by policy, may require human approval, runs one narrow operation, and returns structured evidence. It is deferred. |
+
+The presentation plane remains separate from authority for every role. Quattro
+and QML may render sanitized state and request predeclared actions, but never
+become a generic privileged command, arbitrary prompt, or arbitrary argument
+channel. The deferred System Agent flow is conceptually:
+
+```text
+agent request -> versioned capability request -> policy/risk classification
+              -> optional human approval -> narrow privileged operation
+              -> structured result and evidence
+```
+
+This is an architectural reservation, not an implementation or a schema.
+Risk classification must distinguish, for example, an approved service restart
+from changes to GDM, the NVIDIA/JetPack stack, kernel, firmware, or boot
+configuration. Those high-risk operations retain explicit human approval,
+recovery, and evidence requirements.
+
 ## Session integration boundary
 
 The accepted `lab-vt` backend separates session-neutral lifecycle policy,
