@@ -19,6 +19,8 @@ $SCRIPT_DIR/quattro-reboot-check.sh \
 $SCRIPT_DIR/quattro-workloads.sh \
 $SCRIPT_DIR/quattro-action-gateway.sh \
 $SCRIPT_DIR/quattro-agent-adapter.sh \
+$SCRIPT_DIR/quattro-s5-failure-trigger.sh \
+$SCRIPT_DIR/quattro-s5-termination-trigger.sh \
 $ROOT_DIR/containers/hyprland-runtime/hyprland-seatd-entrypoint \
 $ROOT_DIR/containers/hyprland-runtime/hyprland-unprivileged \
 $ROOT_DIR/tests/session/helpers/setpriv \
@@ -66,10 +68,13 @@ PY
 
 sh -n "$ROOT_DIR/tests/mvp/test-conductor.sh"
 sh -n "$ROOT_DIR/tests/mvp/test-control-plane.sh"
+sh -n "$ROOT_DIR/tests/mvp/test-health-report.sh"
 sh -n "$ROOT_DIR/tests/session/test-session-common.sh"
 sh -n "$ROOT_DIR/tests/session/test-session-vt.sh"
 sh -n "$ROOT_DIR/tests/session/test-session-services.sh"
 sh -n "$ROOT_DIR/tests/session/test-gdm-session-runtime.sh"
+sh -n "$ROOT_DIR/tests/session/test-s5-failure-trigger.sh"
+sh -n "$ROOT_DIR/tests/session/test-s5-termination-trigger.sh"
 
 for file in \
   "$ROOT_DIR/tests/runtime-smoke/jetson-telemetry/manifest.json" \

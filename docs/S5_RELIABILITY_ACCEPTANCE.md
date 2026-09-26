@@ -7,8 +7,8 @@ can run once and return safely to GDM. S5 proves that it remains recoverable
 across normal use, bounded failures, and a reboot before any daily-use local
 inference or repository-builder capability is trusted.
 
-Status: **S5-0 implemented; the repeated-login bounce regression is physically
-verified; the complete S5 scenario matrix remains pending.** No S5 scenario is
+Status: **S5-0 through S5-5 are physically verified; the S5 reliability gate
+is complete.** No S5 scenario is
 accepted until all of its automated evidence and required human observations
 are retained. This document does not authorize a default session, automatic
 login, boot-time Quattro, or a permanent GDM Wayland policy change.
@@ -158,10 +158,95 @@ partial lifecycle sequence.
 | S5-4 | Reboot recovery | Fresh post-reboot baseline verification and service/entry status | GDM appears; Ubuntu Xorg and one explicit Quattro selection work | The fixed service can activate through its socket, no Quattro autostart occurs, and the session can still exit to GDM. |
 | S5-5 | Final rollback | GDM experiment status and original configuration checksum | Ubuntu Xorg renders and accepts input after rollback | Exact original GDM policy is restored and GDM is active. |
 
+### S5-1 result (2026-09-26)
+
+Runs `20260926-174258-30021` and `20260926-175238-56331` each have a passing
+20-check stored acceptance result, completed bounded archive review, explicit
+human confirmation of the full S5-1 visual checklist, and normal exit to GDM.
+The second completed after the first, proving no retained container or session
+blocked the consecutive start. S5-1 is physically verified.
+
 S5-2 and S5-3 require a reviewed failure trigger before execution. Do not kill
 arbitrary system processes, Docker resources, GDM, or user sessions to invent a
 failure. If a trigger is not yet implemented, record these as pending rather
 than treating normal logout as a failure test.
+
+S5-2 now has a fixed one-shot trigger at
+`/run/omarchy-quattro/s5-failure-once.json`. It accepts only a root-owned,
+mode-0600 `preflight-v1` record, is consumed into that run before containers
+start, and is archived as `failure-injection.json`; it is never exposed to QML
+or session requests. Arm it immediately before the physical S5-2 selection:
+
+```sh
+sudo ./scripts/quattro-s5-failure-trigger.sh arm --approve
+```
+
+The selected Quattro session must fail back to GDM without starting containers.
+After preserving the resulting run, verify that the trigger is consumed with
+`sudo ./scripts/quattro-s5-failure-trigger.sh status`.
+
+### S5-2 result (2026-09-26)
+
+Run `20260926-195239-143484` consumed the armed `preflight-v1` record and
+failed with exit `2` before either Quattro container started. Its archive
+contains both `failure-injection.json` and the exact supervisor message
+`S5 controlled preflight failure requested`. The trigger subsequently reported
+`armed: false`; GDM and the socket listener were active, and no fixed Quattro
+container remained. The human confirmed the expected prompt return to GDM.
+S5-2 is physically verified.
+
+The first armed attempt exposed an arming-utility defect: it changed the shared
+socket directory to mode `0700`, causing the wrapper to fail with socket
+permission denied before the runtime could consume the trigger. The utility now
+preserves the socket directory at `0755`, while the trigger file stays mode
+`0600`; a fixture protects that boundary.
+
+For S5-3, arm the separate post-ready termination trigger only after refreshing
+the reviewed service bundle:
+
+```sh
+sudo ./scripts/quattro-s5-termination-trigger.sh arm --approve
+```
+
+It is consumed only after both fixed containers are running and the runtime has
+published `ready`; it stops only the labelled Hyprland container, archives
+`termination-injection.json`, and uses the normal cleanup path. Select Quattro
+locally, observe the prompt return to GDM, then verify the trigger reports
+`armed: false`. Do not use this to terminate any unrelated process or session.
+
+### S5-3 result (2026-09-26)
+
+Run `20260926-200144-158633` reached `ready`, consumed the armed
+`terminate-after-ready-v1` record, and archived it as
+`termination-injection.json`. It then exited with code `2` and the exact
+supervisor message `S5 controlled post-ready termination requested`; the
+trigger subsequently reported `armed: false`. The human observed the expected
+return to GDM. A subsequent normal Quattro selection succeeded in run
+`20260926-200214-160687`, and the human then confirmed that an Ubuntu Xorg
+login worked normally. S5-3 is physically verified.
+
+### S5-4 result (2026-09-26)
+
+Baseline `artifacts/reboot-baselines/20260926-201113.json` matched after an
+ordinary Ubuntu reboot: GDM, Docker, the desktop user bus, PipeWire, the
+kernel, and both retained runtime images all passed. The installed session
+bundle still matched source, the service remained static (`enabledAtBoot:
+false`), and only its fixed socket was boot-enabled. A read-only managed
+container listing was empty before the explicit selection, proving Quattro did
+not auto-start. The human confirmed Ubuntu Xorg worked after reboot, then
+selected Quattro for run `20260926-201643-177220`; it exited cleanly, its
+archived health report passed 10 checks with no warnings or failures, and the
+human confirmed `Super+Shift+E` returned to GDM. S5-4 is physically verified.
+
+### S5-5 result (2026-09-26)
+
+The approved GDM experiment `20260924-084355` was rolled back from its exact
+candidate hash to its exact original hash
+`a497ef003bdaafb86f23ab304f13eac8f2565d629acbfd64babac1f22a840a5a`.
+Its status reports `state: rolled-back`, `installedVersion: before`, and active
+GDM; the direct checksum matched the recorded original. The human confirmed an
+Ubuntu Xorg login worked after the GDM restart. S5-5 is physically verified,
+and the complete S5 reliability gate is accepted.
 
 ## Per-run procedure
 

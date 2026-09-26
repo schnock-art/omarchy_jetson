@@ -58,8 +58,11 @@ expanding the accepted MVP claim or weakening the normal Ubuntu recovery path.
 The current baseline has physically verified Quattro rendering, input, audio,
 notifications, filtered connectivity visibility, Jetson power and telemetry,
 Codex usage visibility, a workload registry, GDM restoration, and reboot
-resilience. See [docs/LAB_VISIBILITY.md](docs/LAB_VISIBILITY.md) for retained
-results.
+resilience. S5 reliability and reboot acceptance is now physically verified:
+two complete normal runs, bounded preflight and post-ready failure recovery,
+post-reboot recovery without Quattro auto-start, and byte-for-byte GDM rollback
+all passed. See [docs/S5_RELIABILITY_ACCEPTANCE.md](docs/S5_RELIABILITY_ACCEPTANCE.md)
+for the retained scenario evidence.
 
 The delivery sequence and exact MVP gates are defined in
 [docs/MVP_IMPLEMENTATION_PLAN.md](docs/MVP_IMPLEMENTATION_PLAN.md). New panels
@@ -155,8 +158,9 @@ two consecutive successful selections (`20260924-105055-189127` and
 15-second response timeout while valid startup took about 16 seconds. S4 entry
 status now detects source-stale installed bundles, refresh is transactional,
 and the timeout fixture is tied directly to the service startup bound. These
-runs verify repeat login/logout reliability, but remain separate from the full
-S5 visual and reboot acceptance gates.
+runs verify the earlier repeat login/logout regression fix. The later complete
+S5 scenario evidence is retained in
+[docs/S5_RELIABILITY_ACCEPTANCE.md](docs/S5_RELIABILITY_ACCEPTANCE.md).
 
 ## Local inference and repository builder
 

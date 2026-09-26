@@ -81,6 +81,10 @@ temporary live-session mounts:
 ./scripts/quattro-health-report.sh --run RUN_ID # one retained archive
 ```
 
+`--run` and `--latest` read only the selected archived bundle and do not probe
+the live Docker daemon or current checkout. Use `--host` or `--live` when those
+current-machine checks are intended.
+
 The deterministic MVP conductor uses the same versioned contract as the
 archived evaluator:
 

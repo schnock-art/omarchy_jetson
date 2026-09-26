@@ -39,6 +39,8 @@ HYPR_STATE=
 QS_LOG=
 HYPR_LOG=
 AGENT_STATUS_FILE=
+ARCHIVE_LOG=
+ARCHIVE_RUN_DIR=
 
 pass() { PASS=$((PASS + 1)); printf 'PASS  %s\n' "$*"; }
 warn() { WARN=$((WARN + 1)); printf 'WARN  %s\n' "$*"; }
@@ -70,52 +72,71 @@ latest_archive() {
     -printf '%T@ %p\n' 2>/dev/null | sort -nr | sed -n '1{s/^[^ ]* //;p;}'
 }
 
-agent_status_from_inspect() {
-  python3 - "$1" <<'PY'
-import json
-import sys
-with open(sys.argv[1], encoding="utf-8") as source:
-    data = json.load(source)
-item = data[0] if isinstance(data, list) else data
-for mount in item.get("Mounts", []):
-    if mount.get("Destination") == "/tmp/jetson-agent-status":
-        print(mount.get("Source", ""))
-        break
-PY
+select_archive() {
+  if [ "$MODE" = run ]; then
+    case "$RUN_ID" in
+      *[!A-Za-z0-9_-]*|'') fail 'Invalid run ID' ;;
+      *)
+        if [ -d "$ARCHIVE_DIR/$RUN_ID" ] && [ ! -L "$ARCHIVE_DIR/$RUN_ID" ]; then
+          ARCHIVE_RUN_DIR="$ARCHIVE_DIR/$RUN_ID"
+          ARCHIVE_LOG="$ARCHIVE_RUN_DIR/quickshell-quattro-smoke.log"
+          if [ ! -f "$ARCHIVE_LOG" ] || [ -L "$ARCHIVE_LOG" ]; then ARCHIVE_LOG=; fi
+        fi
+        ;;
+    esac
+  elif [ "$MODE" = latest ]; then
+    ARCHIVE_LOG=$(latest_archive)
+    if [ -n "$ARCHIVE_LOG" ] && [ ! -L "$ARCHIVE_LOG" ]; then
+      ARCHIVE_RUN_DIR=$(dirname "$ARCHIVE_LOG")
+    else
+      ARCHIVE_LOG=
+    fi
+  fi
 }
+
+select_archive
+if [ "$MODE" = run ] || [ "$MODE" = latest ]; then
+  REPORT_REVISION=unavailable
+  if [ -n "$ARCHIVE_RUN_DIR" ] && [ -f "$ARCHIVE_RUN_DIR/session.json" ] && [ ! -L "$ARCHIVE_RUN_DIR/session.json" ]; then
+    REPORT_REVISION=$(jq -r '.revision // "unavailable"' "$ARCHIVE_RUN_DIR/session.json" 2>/dev/null || printf unavailable)
+  fi
+else
+  REPORT_REVISION=$(git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null || echo unavailable)
+fi
 
 printf 'Quattro Jetson lab health report\n'
 printf 'Repository: %s\n' "$ROOT_DIR"
-printf 'Revision:   %s\n' "$(git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null || echo unavailable)"
+printf 'Revision:   %s\n' "$REPORT_REVISION"
 printf 'Saved report: %s\n' "$REPORT_FILE"
-printf '\nInfrastructure\n'
+if [ "$MODE" = host ] || [ "$MODE" = live ]; then
+  printf '\nInfrastructure\n'
+  if docker_cmd info >/dev/null 2>&1; then
+    DOCKER_OK=1
+    pass 'Docker daemon is reachable'
+  else
+    fail 'Docker daemon is not reachable (try the report again with working sudo access)'
+  fi
 
-if docker_cmd info >/dev/null 2>&1; then
-  DOCKER_OK=1
-  pass 'Docker daemon is reachable'
-else
-  fail 'Docker daemon is not reachable (try the report again with working sudo access)'
-fi
+  if [ -x "$ROOT_DIR/scripts/start-quattro-lab.sh" ] && [ -x "$ROOT_DIR/scripts/run-hyprland-drm.sh" ]; then
+    pass 'Launcher scripts are present and executable'
+  else
+    fail 'Launcher scripts are missing or not executable'
+  fi
 
-if [ -x "$ROOT_DIR/scripts/start-quattro-lab.sh" ] && [ -x "$ROOT_DIR/scripts/run-hyprland-drm.sh" ]; then
-  pass 'Launcher scripts are present and executable'
-else
-  fail 'Launcher scripts are missing or not executable'
-fi
+  if [ -f "$ROOT_DIR/tests/runtime-smoke/jetson-telemetry/Panel.qml" ] && \
+     [ -x "$ROOT_DIR/scripts/collect-jetson-telemetry.sh" ]; then
+    pass 'Jetson telemetry integration is present'
+  else
+    fail 'Jetson telemetry integration is incomplete'
+  fi
 
-if [ -f "$ROOT_DIR/tests/runtime-smoke/jetson-telemetry/Panel.qml" ] && \
-   [ -x "$ROOT_DIR/scripts/collect-jetson-telemetry.sh" ]; then
-  pass 'Jetson telemetry integration is present'
-else
-  fail 'Jetson telemetry integration is incomplete'
-fi
-
-if [ -f "$ROOT_DIR/tests/runtime-smoke/jetson-workloads/Panel.qml" ] && \
-   [ -x "$ROOT_DIR/scripts/quattro-workloads.sh" ] && \
-   [ -x "$ROOT_DIR/scripts/quattro-action-gateway.sh" ]; then
-  pass 'Bounded workload action integration is present'
-else
-  fail 'Bounded workload action integration is incomplete'
+  if [ -f "$ROOT_DIR/tests/runtime-smoke/jetson-workloads/Panel.qml" ] && \
+     [ -x "$ROOT_DIR/scripts/quattro-workloads.sh" ] && \
+     [ -x "$ROOT_DIR/scripts/quattro-action-gateway.sh" ]; then
+    pass 'Bounded workload action integration is present'
+  else
+    fail 'Bounded workload action integration is incomplete'
+  fi
 fi
 
 if [ "$DOCKER_OK" -eq 1 ]; then
@@ -142,27 +163,7 @@ if [ "$DOCKER_OK" -eq 1 ]; then
   fi
 fi
 
-ARCHIVE_LOG=
-ARCHIVE_RUN_DIR=
-if [ "$MODE" = run ]; then
-  case "$RUN_ID" in
-    *[!A-Za-z0-9_-]*|'') fail 'Invalid run ID' ;;
-    *)
-      if [ -d "$ARCHIVE_DIR/$RUN_ID" ]; then
-        ARCHIVE_RUN_DIR="$ARCHIVE_DIR/$RUN_ID"
-        ARCHIVE_LOG="$ARCHIVE_RUN_DIR/quickshell-quattro-smoke.log"
-        [ -f "$ARCHIVE_LOG" ] || ARCHIVE_LOG=
-      fi
-      ;;
-  esac
-elif [ "$MODE" = latest ]; then
-  ARCHIVE_LOG=$(latest_archive)
-fi
-if [ "$MODE" = host ]; then
-  ARCHIVE_LOG=
-fi
 if [ -n "$ARCHIVE_LOG" ]; then
-  ARCHIVE_RUN_DIR=$(dirname "$ARCHIVE_LOG")
   pass 'A retained Quattro run archive is available'
   note "$ARCHIVE_LOG"
 elif [ "$MODE" = run ] && [ -n "$ARCHIVE_RUN_DIR" ]; then
@@ -178,14 +179,11 @@ elif [ "$MODE" != host ]; then
   warn 'No retained Quattro run archive was found yet'
 fi
 
-if [ "$MODE" != live ] && [ -n "${ARCHIVE_RUN_DIR:-}" ] && [ -f "$ARCHIVE_RUN_DIR/agent-status.json" ]; then
+if [ "$MODE" != live ] && [ -n "${ARCHIVE_RUN_DIR:-}" ] && [ -f "$ARCHIVE_RUN_DIR/agent-status.json" ] && [ ! -L "$ARCHIVE_RUN_DIR/agent-status.json" ]; then
   AGENT_STATUS_FILE="$ARCHIVE_RUN_DIR/agent-status.json"
 elif [ "$DOCKER_OK" -eq 1 ] && [ -n "$QS_STATE" ]; then
   AGENT_STATUS_DIR=$(docker_cmd inspect -f '{{range .Mounts}}{{if eq .Destination "/tmp/jetson-agent-status"}}{{.Source}}{{end}}{{end}}' quickshell-quattro-smoke 2>/dev/null || true)
   if [ -n "$AGENT_STATUS_DIR" ]; then AGENT_STATUS_FILE="$AGENT_STATUS_DIR/status.json"; fi
-elif [ "$MODE" != live ] && [ -n "${ARCHIVE_RUN_DIR:-}" ] && [ -f "$ARCHIVE_RUN_DIR/quickshell-quattro-smoke.inspect.json" ]; then
-  AGENT_STATUS_DIR=$(agent_status_from_inspect "$ARCHIVE_RUN_DIR/quickshell-quattro-smoke.inspect.json" 2>/dev/null || true)
-  if [ -n "$AGENT_STATUS_DIR" ] && [ -f "$AGENT_STATUS_DIR/status.json" ]; then AGENT_STATUS_FILE="$AGENT_STATUS_DIR/status.json"; fi
 fi
 
 printf '\nAgent bridge\n'
@@ -247,11 +245,25 @@ fi
 
 if [ -n "$HYPR_STATE" ] || [ -n "$ARCHIVE_LOG" ]; then
   printf '\nHyprland result\n'
-  HYPR_EXIT=$(container_exit hyprland-phase2-drm)
+  HYPR_EXIT=
+  if [ "$MODE" = live ]; then
+    HYPR_EXIT=$(container_exit hyprland-phase2-drm)
+  else
+    for inspect_file in \
+      "$ARCHIVE_RUN_DIR/hyprland-phase2-drm.inspect.json" \
+      "$ARCHIVE_RUN_DIR/hyprland-quattro-gdm.inspect.json"; do
+      if [ -f "$inspect_file" ] && [ ! -L "$inspect_file" ]; then
+        HYPR_EXIT=$(jq -r 'if type == "array" then .[0].State.ExitCode else .State.ExitCode end // empty' "$inspect_file" 2>/dev/null || true)
+        break
+      fi
+    done
+  fi
   if [ "$HYPR_STATE" = running ]; then
     pass 'Hyprland container is running'
-  elif [ "$HYPR_EXIT" = 0 ] || [ -z "$HYPR_EXIT" ]; then
-    pass 'Hyprland exited cleanly (or is represented only by the archive)'
+  elif [ "$HYPR_EXIT" = 0 ]; then
+    pass 'Hyprland exited cleanly'
+  elif [ -z "$HYPR_EXIT" ]; then
+    warn 'No archived Hyprland exit status was recorded'
   else
     fail "Hyprland container exit code: ${HYPR_EXIT:-unknown}"
   fi

@@ -240,10 +240,20 @@ works immediately afterward.
 
 ### S5 — Reliability and reboot acceptance
 
-Status: implementation complete for S5-0. The 2026-09-24 wrapper-timeout fix
+Status: **physically verified and complete.** The 2026-09-24 wrapper-timeout fix
 is physically verified by consecutive successful login/logout runs
-`20260924-105055-189127` and `20260924-105337-197726`; full S5-1 visual and
-automated acceptance plus S5-2 through S5-5 remain pending. The fixture-tested socket-activation design lets an
+`20260924-105055-189127` and `20260924-105337-197726`. S5-1 is now physically
+verified by passing complete runs `20260926-174258-30021` and
+`20260926-175238-56331`. S5-2 is physically verified by controlled failed run
+`20260926-195239-143484`. S5-3 is physically verified by controlled
+post-ready termination run `20260926-200144-158633`, followed by normal
+Quattro recovery run `20260926-200214-160687` and an Ubuntu Xorg login. S5-4
+is physically verified by post-reboot baseline
+`artifacts/reboot-baselines/20260926-201113.json` and clean explicit Quattro
+run `20260926-201643-177220`. S5-5 is physically verified by rollback of GDM
+experiment `20260924-084355` to the recorded original checksum and an Ubuntu
+Xorg recovery login. The S5 reliability gate is complete. The fixture-tested
+socket-activation design lets an
 explicitly selected session reach the fixed service after reboot without
 enabling Quattro itself at boot. The exact scenario order, evidence contract,
 reboot procedure, and mandatory rollback are documented in

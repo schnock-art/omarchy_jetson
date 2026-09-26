@@ -17,6 +17,8 @@ QS_BIN=/tmp/quickshell-services-build/src/quickshell
 TEST_CONFIG="$CHECKOUT/tests/runtime-smoke/hyprland.conf"
 TEST_ROOT="$CHECKOUT/tests/runtime-smoke"
 OMARCHY_ROOT=/home/looco/omarchy
+S5_FAILURE_TRIGGER=/run/omarchy-quattro/s5-failure-once.json
+S5_TERMINATION_TRIGGER=/run/omarchy-quattro/s5-termination-once.json
 
 . "$LIBEXEC_DIR/quattro-session-common.sh"
 . "$LIBEXEC_DIR/quattro-session-services.sh"
@@ -90,6 +92,8 @@ runtime_archive() {
   mkdir -p "$ARCHIVE_DIR"
   quattro_archive_file "$RUN_DIR/seat-check.jsonl" "$ARCHIVE_DIR" seat-check.jsonl || archive_failed=1
   quattro_archive_file "$RUN_DIR/supervisor.log" "$ARCHIVE_DIR" supervisor.log || archive_failed=1
+  quattro_archive_file "$RUN_DIR/failure-injection.json" "$ARCHIVE_DIR" failure-injection.json || archive_failed=1
+  quattro_archive_file "$RUN_DIR/termination-injection.json" "$ARCHIVE_DIR" termination-injection.json || archive_failed=1
   quattro_services_archive "$ARCHIVE_DIR" || archive_failed=1
   quattro_archive_file "$CHECKOUT/artifacts/workloads/registry.json" "$ARCHIVE_DIR" workload-registry.json || archive_failed=1
   if runtime_owned_container "$QS_CONTAINER"; then
@@ -118,6 +122,27 @@ runtime_remove_owned_container() {
   state=$(quattro_docker container inspect -f '{{.State.Status}}' "$name")
   [ "$state" = exited ] || return 1
   quattro_docker rm "$name" >/dev/null
+}
+
+runtime_consume_s5_failure_trigger() {
+  [ -e "$S5_FAILURE_TRIGGER" ] || return 0
+  [ -f "$S5_FAILURE_TRIGGER" ] && [ ! -L "$S5_FAILURE_TRIGGER" ] || runtime_fail 'unsafe S5 failure trigger'
+  [ "$(stat -c %u "$S5_FAILURE_TRIGGER")" -eq 0 ] || runtime_fail 'S5 failure trigger is not root-owned'
+  case "$(stat -c %a "$S5_FAILURE_TRIGGER")" in *[2367][0-7]|*[0-7][2367]) runtime_fail 'S5 failure trigger is writable by another user' ;; esac
+  mv "$S5_FAILURE_TRIGGER" "$RUN_DIR/failure-injection.json"
+  jq -e 'keys == ["armedAt","failure","schemaVersion"] and .schemaVersion == 1 and .failure == "preflight-v1" and (.armedAt | type == "string")' "$RUN_DIR/failure-injection.json" >/dev/null || runtime_fail 'invalid S5 failure trigger'
+  runtime_fail 'S5 controlled preflight failure requested'
+}
+
+runtime_consume_s5_termination_trigger() {
+  [ -e "$S5_TERMINATION_TRIGGER" ] || return 0
+  [ -f "$S5_TERMINATION_TRIGGER" ] && [ ! -L "$S5_TERMINATION_TRIGGER" ] || runtime_fail 'unsafe S5 termination trigger'
+  [ "$(stat -c %u "$S5_TERMINATION_TRIGGER")" -eq 0 ] || runtime_fail 'S5 termination trigger is not root-owned'
+  case "$(stat -c %a "$S5_TERMINATION_TRIGGER")" in *[2367][0-7]|*[0-7][2367]) runtime_fail 'S5 termination trigger is writable by another user' ;; esac
+  mv "$S5_TERMINATION_TRIGGER" "$RUN_DIR/termination-injection.json"
+  jq -e 'keys == ["armedAt","failure","schemaVersion"] and .schemaVersion == 1 and .failure == "terminate-after-ready-v1" and (.armedAt | type == "string")' "$RUN_DIR/termination-injection.json" >/dev/null || runtime_fail 'invalid S5 termination trigger'
+  quattro_docker stop --time 5 "$HYPR_CONTAINER" >/dev/null || runtime_fail 'S5 controlled termination could not stop Hyprland'
+  runtime_fail 'S5 controlled post-ready termination requested'
 }
 
 runtime_cleanup() {
@@ -185,6 +210,7 @@ runtime_supervise() {
   trap 'exit 130' INT
   trap 'exit 143' HUP TERM
 
+  runtime_consume_s5_failure_trigger
   runtime_preflight
   HOST_USER=$(getent passwd "$HOST_UID" | cut -d: -f1)
   [ -n "$HOST_USER" ] || runtime_fail 'session user is unavailable'
@@ -241,6 +267,7 @@ runtime_supervise() {
   quattro_docker container inspect -f '{{.State.Running}}' "$HYPR_CONTAINER" | grep -qx true
   quattro_docker container inspect -f '{{.State.Running}}' "$QS_CONTAINER" | grep -qx true
   runtime_write_status ready
+  runtime_consume_s5_termination_trigger
   RESULT=$(quattro_docker wait "$HYPR_CONTAINER")
   runtime_validate_number 'Hyprland exit status' "$RESULT"
   exit "$RESULT"
