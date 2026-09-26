@@ -1,0 +1,14 @@
+# L0 design draft only. Do not load before the controller path and installation
+# transaction exist and the L0 operator-context fixture is reviewed.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile omarchy-quattro-local-builder-controller
+  /usr/libexec/omarchy-quattro/local-builder-controller flags=(unconfined) {
+  # Ubuntu 24.04 otherwise denies unprivileged user namespaces to an
+  # unconfined process. Bubblewrap still supplies the filesystem, network,
+  # PID, IPC, UTS, and cgroup namespace boundary and disables nested userns.
+  userns,
+
+  include if exists <local/omarchy-quattro-local-builder-controller>
+}

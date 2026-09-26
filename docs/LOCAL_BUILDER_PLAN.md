@@ -148,8 +148,13 @@ terminal result and cleans up only that task's process group and worktree.
 
 ### L0 — Prerequisites and design lock
 
-Status: planned. This is the next planning/implementation slice after the S5
-reliability gate has an explicit result.
+Status: **design selected; gate pending.** The 2026-09-26 inventory, threat
+model, isolation decision, failure/retention policy, and fixture matrix are in
+[LOCAL_BUILDER_L0_DESIGN.md](LOCAL_BUILDER_L0_DESIGN.md). Bubblewrap passes the
+fixed boundary fixture from Codex's application profile, but Ubuntu AppArmor
+denies the same user-namespace setup from a normal operator context. L1 remains
+blocked until the narrow, currently uninstalled controller profile is
+explicitly approved and its install, normal-context test, and rollback pass.
 
 - Keep S5 as the display/session reliability prerequisite; local inference must
   not mask a stale session, GDM recovery, or service failure.

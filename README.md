@@ -52,6 +52,7 @@ expanding the accepted MVP claim or weakening the normal Ubuntu recovery path.
 - [Opt-in Quattro GDM session entry](docs/GDM_SESSION_ENTRY.md)
 - [S5 reliability and reboot acceptance](docs/S5_RELIABILITY_ACCEPTANCE.md)
 - [Local inference and repository-builder plan](docs/LOCAL_BUILDER_PLAN.md)
+- [Local builder L0 inventory and isolation design](docs/LOCAL_BUILDER_L0_DESIGN.md)
 
 ## Status
 
@@ -173,3 +174,10 @@ resource benchmark, and enforceable worktree sandbox are accepted. A local
 model may produce a reviewed worktree diff and test evidence, but cannot alter
 `main`, GDM, boot/JetPack/NVIDIA state, or arbitrary host files. See
 [docs/LOCAL_BUILDER_PLAN.md](docs/LOCAL_BUILDER_PLAN.md).
+
+The L0 inventory and isolation design are recorded, but the gate remains
+pending: Bubblewrap enforces the proposed boundary under an application profile
+that permits user namespaces, while Ubuntu AppArmor denies that primitive from
+a normal operator context. No profile was loaded and no Ollama package,
+service, or model was installed. See
+[docs/LOCAL_BUILDER_L0_DESIGN.md](docs/LOCAL_BUILDER_L0_DESIGN.md).
